@@ -1,0 +1,8 @@
+{
+    "id": "terrarian-compendium",
+    "name": "Terrarian Compendium",
+    "version": "1.0.0",
+    "author": "Escarval",
+    "description": "Tracks vanilla Terraria item collection progress per character and provides in-game Items, Armor Sets, Recipes, and Bestiary browsing with shared details and cross-navigation.",
+    "entry_dll": "TerrarianCompendium.dll"
+}

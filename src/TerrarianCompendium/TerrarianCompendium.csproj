@@ -1,0 +1,119 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <RootNamespace>TerrarianCompendium</RootNamespace>
+        <AssemblyName>TerrarianCompendium</AssemblyName>
+        <OutputType>Library</OutputType>
+        <LangVersion>latest</LangVersion>
+        <Nullable>disable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+        <Version>1.0.0</Version>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="TerrarianCompendium.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Localization\Locales\*.json"
+                          LogicalName="TerrarianCompendium.Localization.Locales.%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <Import Project="..\TerrarianCompendium.Local.props"
+            Condition="Exists('..\TerrarianCompendium.Local.props')"/>
+
+    <PropertyGroup>
+        <TerrariaExe Condition="'$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\Terraria.exe</TerrariaExe>
+        <TerrariaModderCoreDll Condition="'$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\TerrariaModder\core\TerrariaModder.Core.dll</TerrariaModderCoreDll>
+        <ManifestPath>$(MSBuildThisFileDirectory)..\..\mod\manifest.json</ManifestPath>
+        <DeployToGame Condition="'$(DeployToGame)' == ''">false</DeployToGame>
+        <TerrariaModDirectory Condition="'$(TerrariaModDirectory)' == '' and '$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\TerrariaModder\mods\terrarian-compendium</TerrariaModDirectory>
+    </PropertyGroup>
+
+    <Target Name="ValidateLocalConfiguration"
+            BeforeTargets="ResolveReferences">
+        <Error Condition="'$(TerrariaDirectory)' == ''"
+               Text="TerrariaDirectory is not configured. Create src\TerrarianCompendium.Local.props from docs\TerrarianCompendium.Local.props.example and set the Terraria installation path."/>
+        <Error Condition="'$(TerrariaExe)' != '' and !Exists('$(TerrariaExe)')"
+               Text="Terraria.exe was not found at '$(TerrariaExe)'. Update TerrariaDirectory in src\TerrarianCompendium.Local.props."/>
+        <Error Condition="'$(TerrariaModderCoreDll)' != '' and !Exists('$(TerrariaModderCoreDll)')"
+               Text="TerrariaModder.Core.dll was not found at '$(TerrariaModderCoreDll)'. Update TerrariaDirectory in src\TerrarianCompendium.Local.props."/>
+
+        <Error Condition="'$(XnaFrameworkGameDll)' == ''"
+               Text="XnaFrameworkGameDll is not configured. Set it in src\TerrarianCompendium.Local.props."/>
+        <Error Condition="'$(XnaFrameworkGameDll)' != '' and !Exists('$(XnaFrameworkGameDll)')"
+               Text="Microsoft.Xna.Framework.Game.dll was not found at '$(XnaFrameworkGameDll)'. Update XnaFrameworkGameDll in src\TerrarianCompendium.Local.props."/>
+
+        <Error Condition="'$(XnaFrameworkGraphicsDll)' == ''"
+               Text="XnaFrameworkGraphicsDll is not configured. Set it in src\TerrarianCompendium.Local.props."/>
+        <Error Condition="'$(XnaFrameworkGraphicsDll)' != '' and !Exists('$(XnaFrameworkGraphicsDll)')"
+               Text="Microsoft.Xna.Framework.Graphics.dll was not found at '$(XnaFrameworkGraphicsDll)'."/>
+
+        <Error Condition="'$(ReLogicDll)' == ''"
+               Text="ReLogicDll is not configured. Set it in src\TerrarianCompendium.Local.props."/>
+        <Error Condition="'$(ReLogicDll)' != '' and !Exists('$(ReLogicDll)')"
+               Text="ReLogic.dll was not found at '$(ReLogicDll)'."/>
+
+        <Error Condition="'$(DeployToGame)' == 'true' and '$(TerrariaModDirectory)' == ''"
+               Text="TerrariaModDirectory is not configured while DeployToGame is enabled."/>
+    </Target>
+
+    <ItemGroup>
+        <Reference Include="System.Runtime.Serialization">
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TerrariaDirectory)' != ''">
+        <Reference Include="Terraria">
+            <HintPath>$(TerrariaExe)</HintPath>
+            <Private>false</Private>
+        </Reference>
+
+        <Reference Include="TerrariaModder.Core">
+            <HintPath>$(TerrariaModderCoreDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(XnaFrameworkDll)' != ''">
+        <Reference Include="Microsoft.Xna.Framework">
+            <HintPath>$(XnaFrameworkDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(XnaFrameworkGameDll)' != ''">
+        <Reference Include="Microsoft.Xna.Framework.Game">
+            <HintPath>$(XnaFrameworkGameDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(XnaFrameworkGraphicsDll)' != ''">
+        <Reference Include="Microsoft.Xna.Framework.Graphics">
+            <HintPath>$(XnaFrameworkGraphicsDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(ReLogicDll)' != ''">
+        <Reference Include="ReLogic">
+            <HintPath>$(ReLogicDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <Target Name="DeployModToGame"
+            AfterTargets="Build"
+            Condition="'$(DeployToGame)' == 'true' and '$(TerrariaModDirectory)' != ''">
+        <Error Condition="!Exists('$(ManifestPath)')"
+               Text="TerrariaModder manifest was not found at '$(ManifestPath)'."/>
+        <MakeDir Directories="$(TerrariaModDirectory)"/>
+        <Copy SourceFiles="$(TargetPath);$(ManifestPath)"
+              DestinationFolder="$(TerrariaModDirectory)"
+              SkipUnchangedFiles="true"/>
+    </Target>
+</Project>

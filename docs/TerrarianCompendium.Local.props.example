@@ -1,0 +1,43 @@
+<Project>
+    <PropertyGroup>
+        <!--
+        Set this to the root directory of your local Terraria installation.
+        Example:
+        E:\SteamLibrary\steamapps\common\Terraria
+        -->
+        <TerrariaDirectory>C:\Path\To\Terraria</TerrariaDirectory>
+
+        <!--
+        Set this to the base XNA Framework assembly used by the current local development setup.
+        This is the common Windows GAC location; update it if your installation differs.
+        -->
+        <XnaFrameworkDll>C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.dll</XnaFrameworkDll>
+
+        <!--
+        Terraria 1.4.5.8 / TerrariaModder 0.4.1 development requires the XNA Framework Game reference.
+        This is the common Windows GAC location; update it if your installation differs.
+        -->
+        <XnaFrameworkGameDll>C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework.Game\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Game.dll</XnaFrameworkGameDll>
+
+        <!--
+        Terrarian Compendium item texture integration also requires the XNA Framework Graphics reference.
+        This is the common Windows GAC location; update it if your installation differs.
+        -->
+        <XnaFrameworkGraphicsDll>C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework.Graphics\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Graphics.dll</XnaFrameworkGraphicsDll>
+
+        <!--
+        Set this to a local compile-time ReLogic.dll matching the installed Terraria build.
+        Terraria 1.4.5.8 embeds it as Terraria.Libraries.ReLogic.ReLogic.dll.
+        Extract it locally for development; do not package or deploy it with Terrarian Compendium.
+        -->
+        <ReLogicDll>C:\Path\To\Extracted\ReLogic.dll</ReLogicDll>
+
+        <!-- Enable automatic deployment after a successful build when desired. -->
+        <DeployToGame>false</DeployToGame>
+
+        <!--
+        Canonical development deployment directory used when DeployToGame is true.
+        -->
+        <TerrariaModDirectory>$(TerrariaDirectory)\TerrariaModder\mods\terrarian-compendium</TerrariaModDirectory>
+    </PropertyGroup>
+</Project>
