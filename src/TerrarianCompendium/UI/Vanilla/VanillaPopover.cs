@@ -9,10 +9,10 @@ namespace TerrarianCompendium.UI.Vanilla
     {
         private const int AnchorGap = 4;
         private const int PanelPadding = 8;
-        private readonly UIElement _anchor;
         private readonly IVanillaPopoverContent _contentMeasurer;
         private readonly UIElement _host;
         private readonly PopoverPanel _panel;
+        private UIElement _anchor;
 
         public VanillaPopover(UIElement host, UIElement anchor, UIElement content)
         {
@@ -29,6 +29,20 @@ namespace TerrarianCompendium.UI.Vanilla
         }
 
         public bool IsOpen => Parent == _host;
+
+        public void SetAnchor(UIElement anchor)
+        {
+            if (anchor == null)
+                throw new ArgumentNullException(nameof(anchor));
+
+            if (ReferenceEquals(_anchor, anchor))
+                return;
+
+            _anchor = anchor;
+
+            if (IsOpen)
+                Recalculate();
+        }
 
         public void Toggle()
         {

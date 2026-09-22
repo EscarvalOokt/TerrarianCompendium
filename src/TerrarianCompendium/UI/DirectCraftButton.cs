@@ -10,6 +10,7 @@ using TerrariaModder.Core.UI;
 using TerrariaModder.Core.UI.Widgets;
 using TerrarianCompendium.Catalog;
 using TerrarianCompendium.Crafting;
+using TerrarianCompendium.Journey;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.Recipes;
 using TerrarianCompendium.UI.Vanilla;
@@ -22,7 +23,7 @@ namespace TerrarianCompendium.UI
         private const int OptionGap = 2;
         private const int EmptyStateHeight = 18;
 
-        private readonly VanillaTextButton _button;
+        private readonly VanillaIconButton _button;
         private readonly VanillaDirectCraftingService _craftingService;
         private readonly ItemTextIndex _itemTextIndex;
         private readonly CompendiumLocalization _localization;
@@ -40,7 +41,8 @@ namespace TerrarianCompendium.UI
             VanillaDirectCraftingService craftingService,
             ItemTextIndex itemTextIndex,
             RecipeStationDisplayIndex stationDisplayIndex,
-            CompendiumLocalization localization)
+            CompendiumLocalization localization,
+            JourneyResearchState journeyResearchState = null)
         {
             _craftingService = craftingService;
             _itemTextIndex = itemTextIndex ?? throw new ArgumentNullException(nameof(itemTextIndex));
@@ -48,14 +50,15 @@ namespace TerrarianCompendium.UI
             _stationDisplayIndex = stationDisplayIndex;
             SetPadding(0f);
 
-            _button = new VanillaTextButton(_localization.Get(CompendiumTextKeys.DirectCraft.Craft), TogglePopover);
+            _button = new VanillaIconButton(DrawCraftIcon, TogglePopover);
             Append(_button);
 
             _optionsContent = new CraftOptionsContent(
                 _craftingService,
                 _localization,
                 BuildRecipeTooltip,
-                BuildRequirementPresentation);
+                BuildRequirementPresentation,
+                journeyResearchState);
             Clear();
         }
 
@@ -164,7 +167,6 @@ namespace TerrarianCompendium.UI
             _observedCraftingRevision = craftingRevision;
             _observedItemTextRevision = itemTextRevision;
             _observedLocalizationRevision = _localization.Revision;
-            _button.Text = _localization.Get(CompendiumTextKeys.DirectCraft.Craft);
 
             IReadOnlyList<RecipeCatalogEntry> recipes = _craftingService == null
                 ? Array.Empty<RecipeCatalogEntry>()
@@ -197,6 +199,11 @@ namespace TerrarianCompendium.UI
         private void SynchronizeButtonActiveState()
         {
             _button.IsActive = IsPopoverOpen;
+        }
+
+        private void DrawCraftIcon(Rectangle bounds)
+        {
+            VanillaPresentationIcons.DrawCraft(bounds, _button.IsEnabled);
         }
 
         private void TogglePopover()
@@ -388,6 +395,7 @@ namespace TerrarianCompendium.UI
             private readonly Action<int, RecipeOptionElement> _beginCraftHold;
             private readonly VanillaDirectCraftingService _craftingService;
             private readonly Action<int> _endCraftHold;
+            private readonly JourneyResearchState _journeyResearchState;
             private readonly CompendiumLocalization _localization;
             private readonly List<OptionEntry> _options = new();
             private readonly Func<RecipeCatalogEntry, RequirementPresentation> _requirementResolver;
@@ -402,9 +410,11 @@ namespace TerrarianCompendium.UI
                 VanillaDirectCraftingService craftingService,
                 CompendiumLocalization localization,
                 Func<RecipeCatalogEntry, string> tooltipResolver,
-                Func<RecipeCatalogEntry, RequirementPresentation> requirementResolver)
+                Func<RecipeCatalogEntry, RequirementPresentation> requirementResolver,
+                JourneyResearchState journeyResearchState)
             {
                 _craftingService = craftingService;
+                _journeyResearchState = journeyResearchState;
                 _localization = localization ?? throw new ArgumentNullException(nameof(localization));
                 _tooltipResolver = tooltipResolver ?? throw new ArgumentNullException(nameof(tooltipResolver));
                 _requirementResolver =
@@ -482,6 +492,7 @@ namespace TerrarianCompendium.UI
                         requirement,
                         _tooltipResolver(recipe),
                         _localization,
+                        _journeyResearchState,
                         _beginCraftHold,
                         _endCraftHold)
                     {
@@ -649,6 +660,7 @@ namespace TerrarianCompendium.UI
                 RequirementPresentation requirement,
                 string tooltipText,
                 CompendiumLocalization localization,
+                JourneyResearchState journeyResearchState,
                 Action<int, RecipeOptionElement> beginCraftHold,
                 Action<int> endCraftHold)
             {
@@ -673,7 +685,7 @@ namespace TerrarianCompendium.UI
                 for (var index = 0; index < recipe.Ingredients.Count; index++)
                 {
                     RecipeIngredient ingredient = recipe.Ingredients[index];
-                    var visual = new IngredientVisual(ingredient, _localization);
+                    var visual = new IngredientVisual(ingredient, _localization, journeyResearchState);
                     _ingredientVisuals.Add(visual);
                     visual.AppendTo(_buttonSurface);
 
@@ -696,7 +708,7 @@ namespace TerrarianCompendium.UI
                 _arrow = CreateTextLabel("→");
                 _buttonSurface.Append(_arrow);
 
-                _resultIcon = CreateItemIcon(recipe.ResultItemId);
+                _resultIcon = CreateItemIcon(recipe.ResultItemId, journeyResearchState, showResearchBadge: true);
                 _buttonSurface.Append(_resultIcon);
 
                 _resultStack = CreateTextLabel(
@@ -708,7 +720,10 @@ namespace TerrarianCompendium.UI
 
                 if (requirement.StationItemId > 0)
                 {
-                    _stationIcon = CreateItemIcon(requirement.StationItemId);
+                    _stationIcon = CreateItemIcon(
+                        requirement.StationItemId,
+                        journeyResearchState,
+                        showResearchBadge: false);
                     _buttonSurface.Append(_stationIcon);
                 }
 
@@ -971,11 +986,23 @@ namespace TerrarianCompendium.UI
 
             private void HandleLeftMouseDown(UIMouseEvent evt, UIElement listeningElement)
             {
+                if (evt.Target is VanillaItemIcon itemIcon &&
+                    itemIcon.TryHandleJourneyDuplicationFromOwnerMouseDown(evt, _buttonSurface, rightClick: false))
+                {
+                    return;
+                }
+
                 _beginCraftHold(_recipe.RuntimeIndex, this);
             }
 
             private void HandleRightMouseDown(UIMouseEvent evt, UIElement listeningElement)
             {
+                if (evt.Target is VanillaItemIcon itemIcon &&
+                    itemIcon.TryHandleJourneyDuplicationFromOwnerMouseDown(evt, _buttonSurface, rightClick: true))
+                {
+                    return;
+                }
+
                 _beginCraftHold(_recipe.RuntimeIndex, this);
             }
 
@@ -1002,11 +1029,15 @@ namespace TerrarianCompendium.UI
                 };
             }
 
-            private static VanillaItemIcon CreateItemIcon(int itemId)
+            private static VanillaItemIcon CreateItemIcon(
+                int itemId,
+                JourneyResearchState journeyResearchState,
+                bool showResearchBadge)
             {
-                return new VanillaItemIcon
+                return new VanillaItemIcon(journeyResearchState)
                 {
                     ItemId = itemId,
+                    ShowResearchBadge = showResearchBadge,
                     ShowTooltip = true
                 };
             }
@@ -1052,7 +1083,10 @@ namespace TerrarianCompendium.UI
                 private readonly TextLabelElement _stackLabel;
                 private readonly string _stackText;
 
-                public IngredientVisual(RecipeIngredient ingredient, CompendiumLocalization localization)
+                public IngredientVisual(
+                    RecipeIngredient ingredient,
+                    CompendiumLocalization localization,
+                    JourneyResearchState journeyResearchState)
                 {
                     if (ingredient == null)
                         throw new ArgumentNullException(nameof(ingredient));
@@ -1065,7 +1099,10 @@ namespace TerrarianCompendium.UI
                         _anyLabel = CreateTextLabel(_anyText, UIColors.TextDim);
                     }
 
-                    _icon = CreateItemIcon(ingredient.DisplayItemId);
+                    _icon = CreateItemIcon(
+                        ingredient.DisplayItemId,
+                        journeyResearchState,
+                        showResearchBadge: ingredient.Requirement.Kind != RecipeIngredientRequirementKind.RecipeGroup);
                     _stackText = localization.Format(CompendiumTextKeys.Common.Stack, ingredient.Stack);
                     _stackLabel = CreateTextLabel(_stackText);
                 }

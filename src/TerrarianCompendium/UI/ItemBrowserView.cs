@@ -48,6 +48,7 @@ namespace TerrarianCompendium.UI
         private readonly VirtualItemGrid _itemGrid;
         private readonly VanillaScrollRegion _itemScroll;
         private readonly CompendiumLocalization _localization;
+        private readonly BrowserNavigationState _navigationState;
         private readonly SearchDescriptionToggleElement _searchDescriptionToggle;
         private readonly CompendiumSearchBar _searchInput;
         private readonly VanillaTextButton _sortButton;
@@ -71,8 +72,7 @@ namespace TerrarianCompendium.UI
         {
             _checklistState = checklistState ?? throw new ArgumentNullException(nameof(checklistState));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
-            BrowserNavigationState resolvedNavigationState =
-                navigationState ?? throw new ArgumentNullException(nameof(navigationState));
+            _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
             _filterModel = new ChecklistFilterModel(
                 catalog ?? throw new ArgumentNullException(nameof(catalog)),
                 checklistState,
@@ -131,7 +131,8 @@ namespace TerrarianCompendium.UI
             _categoryNavigation = new ItemCategoryNavigationView(
                 _localization,
                 OnCategoryNavigationNodeSelected,
-                OnCategoryOtherSelected);
+                OnCategoryOtherSelected,
+                rootSelected: NavigateToItemsRoot);
             Append(_categoryNavigation);
 
             _itemScroll = new VanillaScrollRegion();
@@ -140,11 +141,12 @@ namespace TerrarianCompendium.UI
             _itemGrid = new VirtualItemGrid(
                 _itemScroll,
                 () => _filterModel.Items,
-                itemId => BrowserSelectionNavigation.ToggleItem(resolvedNavigationState, itemId),
+                itemId => BrowserSelectionNavigation.ToggleItem(_navigationState, itemId),
                 isMissing: itemId => !_checklistState.IsFound(itemId),
                 isSelected: itemId => BrowserSelectionNavigation.IsItemSelected(
-                    resolvedNavigationState.CurrentDestination,
+                    _navigationState.CurrentDestination,
                     itemId),
+                journeyResearchState: journeyResearchState,
                 emptyStateText: string.Empty);
             _itemScroll.Content.Append(_itemGrid);
             SynchronizeLocalization(force: true);
@@ -319,7 +321,13 @@ namespace TerrarianCompendium.UI
                             navigation.NodeId != ItemNavigationNodeId.AllItems &&
                             _filterModel.HasOtherItems(navigation.NodeId);
 
-            _categoryNavigation.Synchronize(navigation.NodeId, navigation.IsOther, parentTarget, hasOther);
+            _categoryNavigation.Synchronize(
+                navigation.NodeId,
+                navigation.IsOther,
+                parentTarget,
+                hasOther,
+                rootActionText: _localization.Get(
+                    CompendiumTextKeys.Taxonomy.Navigation(ItemNavigationNodeId.AllItems)));
         }
 
         private void OnCategoryNavigationNodeSelected(ItemNavigationNodeId nodeId)
@@ -340,6 +348,12 @@ namespace TerrarianCompendium.UI
                 : ChecklistNavigationFilter.ForNode(nodeId);
 
             SetNavigationFilter(next);
+        }
+
+        private void NavigateToItemsRoot()
+        {
+            SetNavigationFilter(ChecklistNavigationFilter.AllItems);
+            _navigationState.Navigate(BrowserDestination.ForSection(BrowserSection.Items));
         }
 
         private void OnSearchContentsChanged(string contents)

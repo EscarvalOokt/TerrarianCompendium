@@ -3,42 +3,81 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria.UI;
+using TerrariaModder.Core.Input;
 using TerrariaModder.Core.UI;
 using TerrariaModder.Core.UI.Widgets;
 using TerrarianCompendium.Catalog;
+using TerrarianCompendium.Journey;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.UI.Vanilla;
 
 namespace TerrarianCompendium.UI
 {
+    internal enum ItemCategoryNavigationUpAction
+    {
+        None,
+        Parent,
+        Root
+    }
+
+    internal static class ItemCategoryNavigationDecision
+    {
+        internal static ItemCategoryNavigationUpAction ResolveUpAction(
+            bool hasParentTarget,
+            bool hasContextItem,
+            bool hasRootAction,
+            bool rootModifierDown)
+        {
+            if (!hasParentTarget && !(hasContextItem && hasRootAction))
+                return ItemCategoryNavigationUpAction.None;
+
+            if (rootModifierDown && hasRootAction)
+                return ItemCategoryNavigationUpAction.Root;
+
+            if (hasParentTarget)
+                return ItemCategoryNavigationUpAction.Parent;
+
+            return ItemCategoryNavigationUpAction.Root;
+        }
+    }
+
     internal sealed class ItemCategoryNavigationView : UIElement
     {
         public const int PreferredWidth = 58;
 
         private const int IconSize = 30;
         private const int ControlGap = 4;
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly CompendiumLocalization _localization;
 
         private readonly Action<ItemNavigationNodeId> _nodeSelected;
         private readonly Action<ItemNavigationNodeId> _otherSelected;
+        private readonly Action _rootSelected;
         private readonly VanillaScrollRegion _scroll;
-        private ItemNavigationNodeId _currentNodeId = ItemNavigationNodeId.AllItems;
 
+        private int? _contextItemId;
+        private bool _contextItemIsMissing;
+        private ItemNavigationNodeId _currentNodeId = ItemNavigationNodeId.AllItems;
         private bool _dirty = true;
         private bool _hasOther;
         private bool _isOther;
         private int _lastContentWidth = -1;
         private long _localizationRevision = -1;
         private ItemNavigationNodeId? _parentTarget;
+        private string _rootActionText = string.Empty;
 
         public ItemCategoryNavigationView(
             CompendiumLocalization localization,
             Action<ItemNavigationNodeId> nodeSelected,
-            Action<ItemNavigationNodeId> otherSelected)
+            Action<ItemNavigationNodeId> otherSelected,
+            JourneyResearchState journeyResearchState = null,
+            Action rootSelected = null)
         {
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             _nodeSelected = nodeSelected ?? throw new ArgumentNullException(nameof(nodeSelected));
             _otherSelected = otherSelected ?? throw new ArgumentNullException(nameof(otherSelected));
+            _journeyResearchState = journeyResearchState;
+            _rootSelected = rootSelected;
             SetPadding(0f);
 
             _scroll = new VanillaScrollRegion
@@ -53,12 +92,20 @@ namespace TerrarianCompendium.UI
             ItemNavigationNodeId currentNodeId,
             bool isOther,
             ItemNavigationNodeId? parentTarget,
-            bool hasOther)
+            bool hasOther,
+            int? contextItemId = null,
+            bool contextItemIsMissing = false,
+            string rootActionText = null)
         {
+            string resolvedRootActionText = rootActionText ?? string.Empty;
+
             if (_currentNodeId == currentNodeId &&
                 _isOther == isOther &&
                 _parentTarget == parentTarget &&
-                _hasOther == hasOther)
+                _hasOther == hasOther &&
+                _contextItemId == contextItemId &&
+                _contextItemIsMissing == contextItemIsMissing &&
+                string.Equals(_rootActionText, resolvedRootActionText, StringComparison.Ordinal))
             {
                 return;
             }
@@ -67,6 +114,9 @@ namespace TerrarianCompendium.UI
             _isOther = isOther;
             _parentTarget = parentTarget;
             _hasOther = hasOther;
+            _contextItemId = contextItemId;
+            _contextItemIsMissing = contextItemIsMissing;
+            _rootActionText = resolvedRootActionText;
             _dirty = true;
             _scroll.ResetScroll();
         }
@@ -103,38 +153,52 @@ namespace TerrarianCompendium.UI
             _lastContentWidth = contentWidth;
             _scroll.Content.RemoveAllChildren();
 
-            if (_currentNodeId == ItemNavigationNodeId.AllItems)
-            {
-                _scroll.SetContentHeight(_scroll.ViewportHeight);
-                _scroll.Content.Recalculate();
-                return;
-            }
-
-            ItemNavigationNodeDefinition currentNode = ItemTaxonomyDefinitions.GetNavigationNode(_currentNodeId);
             var cursor = 0;
 
-            string currentName = _localization.Get(currentNode.DisplayNameKey);
-            var current = new CurrentCategoryElement(
-                _isOther ? null : _currentNodeId,
-                _isOther ? _localization.Format(CompendiumTextKeys.Common.OtherFor, currentName) : currentName);
-            AppendCentered(current, cursor, IconSize, IconSize, contentWidth);
-            cursor += IconSize + ControlGap;
-
-            if (_parentTarget.HasValue)
+            if (_contextItemId.HasValue)
             {
-                ItemNavigationNodeId parentTarget = _parentTarget.Value;
-                string parentName =
-                    _localization.Get(ItemTaxonomyDefinitions.GetNavigationNode(parentTarget).DisplayNameKey);
-                var parentButton = new VanillaTextButton("↑", () => _nodeSelected(parentTarget))
+                var contextItem = new VanillaItemIcon(_journeyResearchState)
                 {
-                    TooltipText = _localization.Format(CompendiumTextKeys.Common.UpTo, parentName)
+                    ItemId = _contextItemId.Value,
+                    IsMissing = _contextItemIsMissing,
+                    ShowTooltip = true
                 };
-                AppendCentered(parentButton, cursor, IconSize, IconSize, contentWidth);
+                AppendCentered(contextItem, cursor, IconSize, IconSize, contentWidth);
                 cursor += IconSize + ControlGap;
             }
 
-            if (!_isOther)
+            if (_currentNodeId != ItemNavigationNodeId.AllItems)
             {
+                ItemNavigationNodeDefinition currentNode = ItemTaxonomyDefinitions.GetNavigationNode(_currentNodeId);
+                string currentName = _localization.Get(currentNode.DisplayNameKey);
+                var current = new CurrentCategoryElement(
+                    _isOther ? null : _currentNodeId,
+                    _isOther ? _localization.Format(CompendiumTextKeys.Common.OtherFor, currentName) : currentName);
+                AppendCentered(current, cursor, IconSize, IconSize, contentWidth);
+                cursor += IconSize + ControlGap;
+            }
+
+            bool hasRootAction = _rootSelected != null && _rootActionText.Length > 0;
+            ItemCategoryNavigationUpAction normalUpAction = ItemCategoryNavigationDecision.ResolveUpAction(
+                _parentTarget.HasValue,
+                _contextItemId.HasValue,
+                hasRootAction,
+                rootModifierDown: false);
+
+            if (normalUpAction != ItemCategoryNavigationUpAction.None)
+            {
+                var upButton = new VanillaTextButton("↑", NavigateUp)
+                {
+                    TooltipText = BuildUpTooltip(hasRootAction, normalUpAction)
+                };
+                AppendCentered(upButton, cursor, IconSize, IconSize, contentWidth);
+                cursor += IconSize + ControlGap;
+            }
+
+            if (_currentNodeId != ItemNavigationNodeId.AllItems && !_isOther)
+            {
+                ItemNavigationNodeDefinition currentNode = ItemTaxonomyDefinitions.GetNavigationNode(_currentNodeId);
+                string currentName = _localization.Get(currentNode.DisplayNameKey);
                 IReadOnlyList<ItemNavigationNodeDefinition> children =
                     ItemTaxonomyDefinitions.GetChildren(_currentNodeId);
 
@@ -166,6 +230,51 @@ namespace TerrarianCompendium.UI
             int contentHeight = Math.Max(0, cursor - ControlGap);
             _scroll.SetContentHeight(Math.Max(contentHeight, _scroll.ViewportHeight));
             _scroll.Content.Recalculate();
+        }
+
+        private string BuildUpTooltip(bool hasRootAction, ItemCategoryNavigationUpAction normalUpAction)
+        {
+            if (normalUpAction == ItemCategoryNavigationUpAction.Root)
+                return _rootActionText;
+
+            ItemNavigationNodeId parentTarget = GetRequiredParentTarget();
+            string parentName =
+                _localization.Get(ItemTaxonomyDefinitions.GetNavigationNode(parentTarget).DisplayNameKey);
+            string parentTooltip = _localization.Format(CompendiumTextKeys.Common.UpTo, parentName);
+
+            if (!hasRootAction)
+                return parentTooltip;
+
+            return parentTooltip + "\n" + _localization.Format(CompendiumTextKeys.Common.AltClick, _rootActionText);
+        }
+
+        private ItemNavigationNodeId GetRequiredParentTarget()
+        {
+            if (!_parentTarget.HasValue)
+                throw new InvalidOperationException("Parent target is required for parent navigation.");
+
+            return _parentTarget.Value;
+        }
+
+        private void NavigateUp()
+        {
+            bool hasRootAction = _rootSelected != null && _rootActionText.Length > 0;
+            ItemCategoryNavigationUpAction action = ItemCategoryNavigationDecision.ResolveUpAction(
+                _parentTarget.HasValue,
+                _contextItemId.HasValue,
+                hasRootAction,
+                InputState.IsAltDown());
+
+            switch (action)
+            {
+                case ItemCategoryNavigationUpAction.Parent:
+                    _nodeSelected(GetRequiredParentTarget());
+                    break;
+
+                case ItemCategoryNavigationUpAction.Root:
+                    _rootSelected?.Invoke();
+                    break;
+            }
         }
 
         private void AppendCentered(UIElement element, int top, int width, int height, int contentWidth)

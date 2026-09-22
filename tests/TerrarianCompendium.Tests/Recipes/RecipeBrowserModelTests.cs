@@ -193,6 +193,326 @@ namespace TerrarianCompendium.Tests.Recipes
         }
 
         [Test]
+        public void IsContextItemAvailable_ProducingIngredientAndUnrelatedItemsUseStaticRecipeRelations()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Ingredient"),
+                new ItemCatalogEntry(3, "Unused"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, CreateItemIngredient(2)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(model.IsContextItemAvailable(1), Is.True);
+                Assert.That(model.IsContextItemAvailable(2), Is.True);
+                Assert.That(model.IsContextItemAvailable(3), Is.False);
+                Assert.That(model.IsContextItemAvailable(999), Is.False);
+            });
+        }
+
+        [Test]
+        public void IsContextItemAvailable_RecipeGroupMemberUsesExistingReverseRelation()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Display Ingredient"),
+                new ItemCatalogEntry(3, "Alternative Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateRecipeGroupIngredient(2, 10, 2, 3)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            Assert.That(model.IsContextItemAvailable(3), Is.True);
+        }
+
+        [Test]
+        public void IsContextItemAvailable_IgnoresSearchNavigationAndRecipeFilters()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Weapon Result", ItemCategoryMembership.Weapons),
+                new ItemCatalogEntry(2, "Furniture Ingredient", ItemCategoryMembership.Furniture));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntryWithRequirements(
+                    0,
+                    1,
+                    CreateRequirements(requiredTileId: 20),
+                    CreateItemIngredient(2)));
+            var filterState = new RecipeFilterState { RequiredTileId = 10 };
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog, filterState);
+            model.NavigationFilter = ChecklistNavigationFilter.ForNode(ItemNavigationNodeId.Weapons);
+            model.SearchQuery = "No matching result";
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(model.MatchingItems, Is.Empty);
+                Assert.That(model.IsItemAvailable(1), Is.False);
+                Assert.That(model.IsContextItemAvailable(2), Is.True);
+            });
+        }
+
+        [Test]
+        public void ContextItemId_OrdinaryIngredientLimitsProjectionToUsedInResults()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "First Result"),
+                new ItemCatalogEntry(2, "Second Result"),
+                new ItemCatalogEntry(8, "Other Ingredient"),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateItemIngredient(9)),
+                CreateRecipeEntry(1, 2, CreateItemIngredient(8)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            model.ContextItemId = 9;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+        }
+
+        [Test]
+        public void ContextItemId_RecipeGroupMemberUsesExistingReverseRelation()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Display Ingredient"),
+                new ItemCatalogEntry(3, "Alternative Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateRecipeGroupIngredient(2, 10, 2, 3)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            model.ContextItemId = 3;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+        }
+
+        [Test]
+        public void ContextItemId_MultipleCandidateRecipesDeduplicateResultsAndPreserveCatalogOrder()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(30, "Third Result"),
+                new ItemCatalogEntry(10, "First Result"),
+                new ItemCatalogEntry(20, "Second Result"),
+                new ItemCatalogEntry(99, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 30, CreateItemIngredient(99)),
+                CreateRecipeEntry(1, 10, CreateItemIngredient(99)),
+                CreateRecipeEntry(2, 10, CreateItemIngredient(99)),
+                CreateRecipeEntry(3, 20, CreateItemIngredient(99)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            model.ContextItemId = 99;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([10, 20, 30]));
+        }
+
+        [Test]
+        public void ContextItemId_ChangeInvalidatesProjectionAndNullRestoresGlobalProjection()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "First Result"),
+                new ItemCatalogEntry(2, "Second Result"),
+                new ItemCatalogEntry(8, "First Context"),
+                new ItemCatalogEntry(9, "Second Context"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateItemIngredient(8)),
+                CreateRecipeEntry(1, 2, CreateItemIngredient(9)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+            IReadOnlyList<ItemCatalogEntry> global = model.MatchingItems;
+
+            model.ContextItemId = 8;
+            IReadOnlyList<ItemCatalogEntry> firstContext = model.MatchingItems;
+            model.ContextItemId = 9;
+            IReadOnlyList<ItemCatalogEntry> secondContext = model.MatchingItems;
+            model.ContextItemId = null;
+            IReadOnlyList<ItemCatalogEntry> restoredGlobal = model.MatchingItems;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(GetItemIds(global), Is.EqualTo([1, 2]));
+                Assert.That(firstContext, Is.Not.SameAs(global));
+                Assert.That(GetItemIds(firstContext), Is.EqualTo([1]));
+                Assert.That(secondContext, Is.Not.SameAs(firstContext));
+                Assert.That(GetItemIds(secondContext), Is.EqualTo([2]));
+                Assert.That(restoredGlobal, Is.Not.SameAs(secondContext));
+                Assert.That(GetItemIds(restoredGlobal), Is.EqualTo([1, 2]));
+            });
+        }
+
+        [Test]
+        public void ContextItemId_EmptyUsedInProjectionDoesNotChangeGlobalOrContextAvailability()
+        {
+            ItemCatalog catalog = CreateItemCatalog(new ItemCatalogEntry(1, "Result"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            model.ContextItemId = 1;
+
+            Assert.That(model.MatchingItems, Is.Empty);
+            Assert.That(model.IsItemAvailable(1), Is.True);
+            Assert.That(model.IsContextItemAvailable(1), Is.True);
+        }
+
+        [Test]
+        public void ContextItemId_NonContextualProducingRecipeCannotSatisfyRequirementFilter()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(8, "Other Ingredient"),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntryWithRequirements(
+                    0,
+                    1,
+                    CreateRequirements(requiredTileId: 20),
+                    CreateItemIngredient(9)),
+                CreateRecipeEntryWithRequirements(
+                    1,
+                    1,
+                    CreateRequirements(requiredTileId: 10),
+                    CreateItemIngredient(8)));
+            var filterState = new RecipeFilterState { RequiredTileId = 10 };
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog, filterState);
+            model.ContextItemId = 9;
+
+            Assert.That(model.MatchingItems, Is.Empty);
+        }
+
+        [Test]
+        public void ContextItemId_RecipeLevelFiltersMustMatchSameContextualCandidate()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntryWithRequirements(
+                    3,
+                    1,
+                    CreateRequirements(requiredTileId: 10),
+                    CreateItemIngredient(9)),
+                CreateRecipeEntryWithRequirements(
+                    7,
+                    1,
+                    CreateRequirements(requiredTileId: 20),
+                    CreateItemIngredient(9)));
+            RecipeFavoriteState favoriteState = CreateFavoriteState(recipeCatalog);
+            favoriteState.Toggle(3);
+            var craftingState = new CraftingAvailabilityState(recipeCatalog);
+            craftingState.ReplaceSnapshot([7]);
+            var filterState = new RecipeFilterState
+            {
+                RequiredTileId = 10,
+                FavoritesOnly = true,
+                CraftableNowOnly = true
+            };
+            RecipeBrowserModel model = CreateModel(
+                catalog,
+                recipeCatalog,
+                filterState,
+                favoriteState: favoriteState,
+                craftingState: craftingState);
+            model.ContextItemId = 9;
+
+            Assert.That(model.MatchingItems, Is.Empty);
+
+            craftingState.ReplaceSnapshot([3, 7]);
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+        }
+
+        [Test]
+        public void ContextItemId_CompletionFilterAppliesToResultItems()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Missing Result"),
+                new ItemCatalogEntry(2, "Found Result"),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateItemIngredient(9)),
+                CreateRecipeEntry(1, 2, CreateItemIngredient(9)));
+            var checklistState = new ChecklistState(catalog);
+            checklistState.MarkFound(2);
+            var filterState = new RecipeFilterState { CompletionFilter = ChecklistCompletionFilter.Missing };
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog, filterState, checklistState: checklistState);
+            model.ContextItemId = 9;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+
+            filterState.CompletionFilter = ChecklistCompletionFilter.Found;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([2]));
+        }
+
+        [Test]
+        public void ContextItemId_ResearchFilterAppliesToResultItems()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Researched Result"),
+                new ItemCatalogEntry(2, "Unresearched Result"),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateItemIngredient(9)),
+                CreateRecipeEntry(1, 2, CreateItemIngredient(9)));
+            JourneyResearchState researchState = CreateResearchState((1, 1, 1), (2, 2, 0));
+            var filterState = new RecipeFilterState { ResearchFilter = ChecklistResearchFilter.Researched };
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog, filterState, researchState: researchState);
+            model.ContextItemId = 9;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+
+            filterState.ResearchFilter = ChecklistResearchFilter.Unresearched;
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([2]));
+        }
+
+        [Test]
+        public void ContextItemId_SearchAndCategoryRemainResultItemPredicates()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Target Weapon", ItemCategoryMembership.Weapons),
+                new ItemCatalogEntry(2, "Target Chair", ItemCategoryMembership.Furniture),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 1, CreateItemIngredient(9)),
+                CreateRecipeEntry(1, 2, CreateItemIngredient(9)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+            model.ContextItemId = 9;
+            model.NavigationFilter = ChecklistNavigationFilter.ForNode(ItemNavigationNodeId.Weapons);
+            model.SearchQuery = "Target";
+
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+
+            model.SearchQuery = "Chair";
+
+            Assert.That(model.MatchingItems, Is.Empty);
+        }
+
+        [Test]
+        public void ContextItemId_FilterRevisionRefreshesCachedProjection()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(9, "Context Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntryWithRequirements(
+                    0,
+                    1,
+                    CreateRequirements(requiredTileId: 10),
+                    CreateItemIngredient(9)));
+            var filterState = new RecipeFilterState { RequiredTileId = 10 };
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog, filterState);
+            model.ContextItemId = 9;
+            IReadOnlyList<ItemCatalogEntry> before = model.MatchingItems;
+
+            filterState.RequiredTileId = 20;
+            IReadOnlyList<ItemCatalogEntry> after = model.MatchingItems;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(after, Is.Not.SameAs(before));
+                Assert.That(after, Is.Empty);
+            });
+        }
+
+        [Test]
         public void MatchingItems_WithMultipleRecipesForSameResult_ContainsResultOnce()
         {
             ItemCatalog catalog = CreateItemCatalog(new ItemCatalogEntry(1, "Result"));
@@ -1098,6 +1418,17 @@ namespace TerrarianCompendium.Tests.Recipes
         private static RecipeIngredient CreateItemIngredient(int itemId)
         {
             return new RecipeIngredient(itemId, 1, RecipeIngredientRequirement.ForItem(itemId));
+        }
+
+        private static RecipeIngredient CreateRecipeGroupIngredient(
+            int displayItemId,
+            int recipeGroupId,
+            params int[] validItemIds)
+        {
+            return new RecipeIngredient(
+                displayItemId,
+                1,
+                RecipeIngredientRequirement.ForRecipeGroup(recipeGroupId, validItemIds));
         }
 
         private static int[] GetItemIds(IReadOnlyList<ItemCatalogEntry> items)

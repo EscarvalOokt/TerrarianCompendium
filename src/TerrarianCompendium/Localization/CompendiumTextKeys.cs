@@ -49,6 +49,7 @@ namespace TerrarianCompendium.Localization
 
         public static class Common
         {
+            public const string AltClick = "Common.AltClick";
             public const string Back = "Common.Back";
             public const string Forward = "Common.Forward";
             public const string Close = "Common.Close";
@@ -77,7 +78,6 @@ namespace TerrarianCompendium.Localization
             public const string ItemIdInline = "Common.ItemIdInline";
             public const string ItemIdHash = "Common.ItemIdHash";
             public const string NpcId = "Common.NpcId";
-            public const string NpcIdInline = "Common.NpcIdInline";
             public const string On = "Common.On";
             public const string Off = "Common.Off";
             public const string Include = "Common.Include";
@@ -151,7 +151,6 @@ namespace TerrarianCompendium.Localization
             public const string ArmorSetsSection = "ItemDetails.ArmorSets";
             public const string Sources = "ItemDetails.Sources";
             public const string PossibleDrops = "ItemDetails.PossibleDrops";
-            public const string UsedIn = "ItemDetails.UsedIn";
             public const string Crafting = "ItemDetails.Crafting";
             public const string NpcDrops = "ItemDetails.NpcDrops";
             public const string Purchasable = "ItemDetails.Purchasable";
@@ -162,9 +161,10 @@ namespace TerrarianCompendium.Localization
             public const string CraftingStation = "ItemDetails.CraftingStation";
             public const string StationRecipesTooltip = "ItemDetails.StationRecipesTooltip";
             public const string BaseValueTooltip = "ItemDetails.BaseValueTooltip";
-            public const string CraftingRecipesCount = "ItemDetails.CraftingRecipesCount";
             public const string Unresearched = "ItemDetails.Unresearched";
             public const string Researched = "ItemDetails.Researched";
+            public const string ResearchDuplicateStackHint = "ItemDetails.ResearchDuplicateStackHint";
+            public const string ResearchDuplicateSingleHint = "ItemDetails.ResearchDuplicateSingleHint";
         }
 
         public static class ItemStats
@@ -255,14 +255,13 @@ namespace TerrarianCompendium.Localization
             public const string Makes = "Recipes.Details.Makes";
             public const string CraftableNowValue = "Recipes.Details.CraftableNowValue";
             public const string AlchemyYes = "Recipes.Details.AlchemyYes";
-            public const string IngredientAnyOf = "Recipes.Details.IngredientAnyOf";
+            public const string AnyOf = "Recipes.Details.AnyOf";
             public const string Ingredient = "Recipes.Details.Ingredient";
             public const string NoSpecialRequirements = "Recipes.Details.NoSpecialRequirements";
         }
 
         public static class DirectCraft
         {
-            public const string Craft = "DirectCraft.Craft";
             public const string AvailabilityUnavailable = "DirectCraft.AvailabilityUnavailable";
             public const string ChooseOne = "DirectCraft.ChooseOne";
             public const string ChooseMany = "DirectCraft.ChooseMany";
@@ -285,6 +284,13 @@ namespace TerrarianCompendium.Localization
             public const string MerchantFilter = "Bestiary.Filter.Merchant";
             public const string HasStock = "Bestiary.Filter.HasStock";
             public const string HasStockTooltip = "Bestiary.Filter.HasStockTooltip";
+            public const string Drops = "Bestiary.Filter.Drops";
+            public const string HasDrops = "Bestiary.Filter.HasDrops";
+            public const string HasDropsTooltip = "Bestiary.Filter.HasDropsTooltip";
+            public const string HasMissingDrops = "Bestiary.Filter.HasMissingDrops";
+            public const string HasMissingDropsTooltip = "Bestiary.Filter.HasMissingDropsTooltip";
+            public const string HasUnresearchedDrops = "Bestiary.Filter.HasUnresearchedDrops";
+            public const string HasUnresearchedDropsTooltip = "Bestiary.Filter.HasUnresearchedDropsTooltip";
             public const string NativeFilters = "Bestiary.Filter.Native";
             public const string NativeFilterFallback = "Bestiary.Filter.NativeFallback";
             public const string SortBestiary = "Bestiary.Sort.Bestiary";
@@ -299,8 +305,6 @@ namespace TerrarianCompendium.Localization
 
         public static class NpcDetails
         {
-            public const string Conditions = "NpcDetails.Conditions";
-            public const string ConditionsTooltip = "NpcDetails.ConditionsTooltip";
             public const string Missing = "NpcDetails.Missing";
             public const string Classic = "NpcDetails.Classic";
             public const string Expert = "NpcDetails.Expert";
@@ -310,6 +314,7 @@ namespace TerrarianCompendium.Localization
             public const string FoundIn = "NpcDetails.FoundIn";
             public const string NoEnvironmentTags = "NpcDetails.NoEnvironmentTags";
             public const string BaseImmunities = "NpcDetails.BaseImmunities";
+            public const string BannerProgress = "NpcDetails.BannerProgress";
             public const string Coins = "NpcDetails.Coins";
             public const string Stock = "NpcDetails.Stock";
             public const string Drops = "NpcDetails.Drops";
@@ -320,17 +325,22 @@ namespace TerrarianCompendium.Localization
             public const string MaxLife = "NpcDetails.MaxLife";
             public const string Defense = "NpcDetails.Defense";
             public const string KnockbackTaken = "NpcDetails.KnockbackTaken";
+            public const string KillStatistics = "NpcDetails.KillStatistics";
             public const string Rarity = "NpcDetails.Rarity";
             public const string RareCreature = "NpcDetails.RareCreature";
+            public const string Slain = "NpcDetails.Slain";
             public const string Unavailable = "NpcDetails.Unavailable";
         }
 
         public static class Merchant
         {
-            public const string AlwaysAvailable = "Merchant.AlwaysAvailable";
             public const string ConditionalAvailability = "Merchant.ConditionalAvailability";
+            public const string ConditionDetailsHint = "Merchant.ConditionDetailsHint";
             public const string RandomStock = "Merchant.RandomStock";
             public const string ShopCapacityLimited = "Merchant.ShopCapacityLimited";
+            public const string UnknownItem = "Merchant.UnknownItem";
+            public const string UnknownNpc = "Merchant.UnknownNpc";
+            public const string UnknownMoonPhase = "Merchant.UnknownMoonPhase";
 
             public static string Condition(MerchantSourceConditionKind kind, bool negated)
             {

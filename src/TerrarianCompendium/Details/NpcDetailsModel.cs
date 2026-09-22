@@ -13,9 +13,11 @@ namespace TerrarianCompendium.Details
         private readonly ChecklistState _checklistState;
         private readonly ItemCatalog _itemCatalog;
         private readonly ItemTextIndex _itemTextIndex;
+        private readonly Func<NpcCatalogEntry, NpcBestiaryKillStatisticsSnapshot> _killStatisticsProvider;
         private readonly CompendiumLocalization _localization;
         private readonly MerchantSourceIndex _merchantSourceIndex;
         private readonly Func<NpcCatalogEntry, NpcDifficultyMode, NpcBestiaryMetadataSnapshot> _metadataProvider;
+        private readonly Func<string, string> _nativeTextResolver;
         private readonly NpcCatalog _npcCatalog;
         private readonly NpcLootIndex _npcLootIndex;
         private readonly Func<NpcCatalogEntry, string> _npcNameProvider;
@@ -23,6 +25,7 @@ namespace TerrarianCompendium.Details
         private long _cachedChecklistRevision = -1;
         private NpcDifficultyMode _cachedDifficulty;
         private long _cachedItemTextRevision = -1;
+        private NpcBestiaryKillStatisticsSnapshot _cachedKillStatistics;
         private long _cachedLocalizationRevision = -1;
         private NpcBestiaryMetadataSnapshot _cachedMetadata;
         private int _cachedNpcNetId;
@@ -36,7 +39,8 @@ namespace TerrarianCompendium.Details
             ChecklistState checklistState,
             CompendiumLocalization localization,
             MerchantSourceIndex merchantSourceIndex = null,
-            Func<NpcCatalogEntry, string> npcNameProvider = null) : this(
+            Func<NpcCatalogEntry, string> npcNameProvider = null,
+            Func<string, string> nativeTextResolver = null) : this(
             npcCatalog,
             npcLootIndex,
             itemCatalog,
@@ -44,8 +48,10 @@ namespace TerrarianCompendium.Details
             checklistState,
             localization,
             VanillaBestiaryNativeBridge.GetMetadataSnapshot,
+            VanillaBestiaryNativeBridge.GetKillStatisticsSnapshot,
             merchantSourceIndex,
-            npcNameProvider)
+            npcNameProvider,
+            nativeTextResolver)
         {
         }
 
@@ -57,8 +63,10 @@ namespace TerrarianCompendium.Details
             ChecklistState checklistState,
             CompendiumLocalization localization,
             Func<NpcCatalogEntry, NpcDifficultyMode, NpcBestiaryMetadataSnapshot> metadataProvider,
+            Func<NpcCatalogEntry, NpcBestiaryKillStatisticsSnapshot> killStatisticsProvider,
             MerchantSourceIndex merchantSourceIndex = null,
-            Func<NpcCatalogEntry, string> npcNameProvider = null)
+            Func<NpcCatalogEntry, string> npcNameProvider = null,
+            Func<string, string> nativeTextResolver = null)
         {
             _npcCatalog = npcCatalog ?? throw new ArgumentNullException(nameof(npcCatalog));
             _npcLootIndex = npcLootIndex ?? throw new ArgumentNullException(nameof(npcLootIndex));
@@ -67,8 +75,11 @@ namespace TerrarianCompendium.Details
             _checklistState = checklistState ?? throw new ArgumentNullException(nameof(checklistState));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             _metadataProvider = metadataProvider ?? throw new ArgumentNullException(nameof(metadataProvider));
+            _killStatisticsProvider = killStatisticsProvider ??
+                                      throw new ArgumentNullException(nameof(killStatisticsProvider));
             _merchantSourceIndex = merchantSourceIndex;
             _npcNameProvider = npcNameProvider;
+            _nativeTextResolver = nativeTextResolver;
         }
 
         public bool TryGetProjection(int npcNetId, NpcDifficultyMode difficulty, out NpcDetailsProjection projection)
@@ -84,6 +95,15 @@ namespace TerrarianCompendium.Details
             NpcBestiaryMetadataSnapshot metadata = _metadataProvider(npcEntry, difficulty) ??
                                                    throw new InvalidOperationException(
                                                        "NPC metadata provider returned null.");
+            NpcBestiaryKillStatisticsSnapshot killStatistics = _killStatisticsProvider(npcEntry) ??
+                                                               throw new InvalidOperationException(
+                                                                   "NPC kill-statistics provider returned null.");
+            NpcDetailsItemReference bannerItem = killStatistics.BannerItemId.HasValue
+                ? CreateItemReference(killStatistics.BannerItemId.Value)
+                : null;
+            int bannerProgress = killStatistics.HasBanner
+                ? killStatistics.BannerKillCount % killStatistics.KillsPerBanner
+                : 0;
             long checklistRevision = _checklistState.Revision;
             long itemTextRevision = _itemTextIndex.Revision;
             long localizationRevision = _localization.Revision;
@@ -100,6 +120,7 @@ namespace TerrarianCompendium.Details
                 _cachedItemTextRevision == itemTextRevision &&
                 _cachedLocalizationRevision == localizationRevision &&
                 AreMetadataEquivalent(_cachedMetadata, metadata) &&
+                AreKillStatisticsEquivalent(_cachedKillStatistics, killStatistics) &&
                 AreLootRowsEquivalent(_cachedProjection.LootRows, lootRows) &&
                 _cachedProjection.MerchantSourceDataAvailable == merchantSourceDataAvailable &&
                 AreMerchantStockEquivalent(_cachedProjection.MerchantStock, merchantStock))
@@ -114,12 +135,16 @@ namespace TerrarianCompendium.Details
                 metadata,
                 lootRows,
                 merchantSourceDataAvailable,
-                merchantStock);
+                merchantStock,
+                killStatistics,
+                bannerItem,
+                bannerProgress);
             _cachedNpcNetId = npcNetId;
             _cachedDifficulty = difficulty;
             _cachedChecklistRevision = checklistRevision;
             _cachedItemTextRevision = itemTextRevision;
             _cachedLocalizationRevision = localizationRevision;
+            _cachedKillStatistics = killStatistics;
             _cachedMetadata = metadata;
             _cachedProjection = projection;
 
@@ -179,21 +204,22 @@ namespace TerrarianCompendium.Details
                 {
                     foreach (MerchantSourceVariant variant in offer.Variants)
                     {
-                        var descriptions = new List<string>(variant.Conditions.Count);
+                        var conditions = new List<NpcDetailsMerchantCondition>(variant.Conditions.Count);
 
                         foreach (MerchantSourceCondition condition in variant.Conditions)
                         {
-                            descriptions.Add(
-                                MerchantSourceConditionPresentation.GetDescription(
-                                    _localization,
-                                    condition,
-                                    ResolveMerchantConditionItemName,
-                                    ResolveMerchantConditionNpcName));
+                            string description = MerchantSourceConditionPresentation.GetDescription(
+                                _localization,
+                                condition,
+                                ResolveMerchantConditionItemName,
+                                ResolveMerchantConditionNpcName,
+                                _nativeTextResolver);
+                            conditions.Add(new NpcDetailsMerchantCondition(condition, description));
                         }
 
                         variants.Add(
                             new NpcDetailsMerchantVariant(
-                                descriptions,
+                                conditions,
                                 (variant.AvailabilityFlags & MerchantSourceAvailabilityFlags.RandomStock) != 0,
                                 (variant.AvailabilityFlags & MerchantSourceAvailabilityFlags.ShopCapacityLimited) !=
                                 0));
@@ -213,7 +239,7 @@ namespace TerrarianCompendium.Details
         private string ResolveMerchantConditionItemName(int itemId)
         {
             if (!_itemCatalog.TryGet(itemId, out ItemCatalogEntry itemEntry))
-                return _localization.Format(CompendiumTextKeys.Common.ItemIdInline, itemId);
+                return null;
 
             string name = _itemTextIndex.GetName(itemId);
             return string.IsNullOrWhiteSpace(name) ? itemEntry.Name : name;
@@ -222,12 +248,10 @@ namespace TerrarianCompendium.Details
         private string ResolveMerchantConditionNpcName(int npcNetId)
         {
             if (!_npcCatalog.TryGet(npcNetId, out NpcCatalogEntry npcEntry))
-                return _localization.Format(CompendiumTextKeys.Common.NpcIdInline, npcNetId);
+                return null;
 
             string name = _npcNameProvider?.Invoke(npcEntry);
-            return string.IsNullOrWhiteSpace(name)
-                ? _localization.Format(CompendiumTextKeys.Common.NpcIdInline, npcNetId)
-                : name;
+            return string.IsNullOrWhiteSpace(name) ? null : name;
         }
 
         private NpcDetailsItemReference CreateItemReference(int itemId)
@@ -308,6 +332,23 @@ namespace TerrarianCompendium.Details
             }
 
             return true;
+        }
+
+        private static bool AreKillStatisticsEquivalent(
+            NpcBestiaryKillStatisticsSnapshot left,
+            NpcBestiaryKillStatisticsSnapshot right)
+        {
+            if (ReferenceEquals(left, right))
+                return true;
+
+            if (left == null || right == null)
+                return false;
+
+            return left.HasKillCounter == right.HasKillCounter &&
+                   left.SlainCount == right.SlainCount &&
+                   left.BannerItemId == right.BannerItemId &&
+                   left.BannerKillCount == right.BannerKillCount &&
+                   left.KillsPerBanner == right.KillsPerBanner;
         }
 
         private static bool AreStatsEquivalent(NpcBestiaryStatsSnapshot left, NpcBestiaryStatsSnapshot right)
@@ -414,10 +455,29 @@ namespace TerrarianCompendium.Details
 
                     if (leftVariant.RandomStock != rightVariant.RandomStock ||
                         leftVariant.ShopCapacityLimited != rightVariant.ShopCapacityLimited ||
-                        !AreStringsEquivalent(leftVariant.ConditionDescriptions, rightVariant.ConditionDescriptions))
+                        !AreMerchantConditionsEquivalent(leftVariant.Conditions, rightVariant.Conditions))
                     {
                         return false;
                     }
+                }
+            }
+
+            return true;
+        }
+
+        private static bool AreMerchantConditionsEquivalent(
+            IReadOnlyList<NpcDetailsMerchantCondition> left,
+            IReadOnlyList<NpcDetailsMerchantCondition> right)
+        {
+            if (left.Count != right.Count)
+                return false;
+
+            for (var index = 0; index < left.Count; index++)
+            {
+                if (!left[index].Condition.Equals(right[index].Condition) ||
+                    !string.Equals(left[index].Description, right[index].Description, StringComparison.Ordinal))
+                {
+                    return false;
                 }
             }
 

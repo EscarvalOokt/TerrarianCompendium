@@ -14,6 +14,7 @@ namespace TerrarianCompendium.UI
         private const int DetailsWidth = 230;
 
         private readonly VanillaUiHost _host;
+        private readonly BrowserNavigationState _navigationState;
 
         public BrowserShell(
             ItemBrowserView itemBrowserView,
@@ -33,14 +34,13 @@ namespace TerrarianCompendium.UI
             if (itemDetailsView == null)
                 throw new ArgumentNullException(nameof(itemDetailsView));
 
-            if (navigationState == null)
-                throw new ArgumentNullException(nameof(navigationState));
-
             if (localization == null)
                 throw new ArgumentNullException(nameof(localization));
 
+            _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
             _host = new VanillaUiHost(
                 TerrarianCompendiumMod.ModId,
+                localization,
                 () => new BrowserUiState(
                     itemBrowserView,
                     armorSetBrowserView,
@@ -82,6 +82,14 @@ namespace TerrarianCompendium.UI
         public void Toggle()
         {
             _host.Toggle();
+        }
+
+        public void OpenItem(int itemId)
+        {
+            _navigationState.Navigate(BrowserDestination.ForItem(itemId));
+
+            if (!_host.IsOpen)
+                _host.Toggle();
         }
 
         public void Close()

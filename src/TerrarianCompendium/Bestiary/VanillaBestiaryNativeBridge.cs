@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Terraria;
 using Terraria.DataStructures;
+using Terraria.GameContent;
 using Terraria.GameContent.Bestiary;
 using Terraria.GameContent.ItemDropRules;
 using Terraria.ID;
@@ -307,6 +308,48 @@ namespace TerrarianCompendium.Bestiary
 
             _metadataCache[cacheKey] = result;
             return result;
+        }
+
+        public static NpcBestiaryKillStatisticsSnapshot GetKillStatisticsSnapshot(NpcCatalogEntry catalogEntry)
+        {
+            if (catalogEntry == null)
+                throw new ArgumentNullException(nameof(catalogEntry));
+
+            BestiaryEntry entry = GetBestiaryEntry(catalogEntry);
+            NPC npc = CreateNpcSnapshot(catalogEntry.NetId, NpcDifficultyMode.Classic);
+            bool hasKillCounter = FindSingleInfoElement<NPCKillCounterInfoElement>(entry) != null;
+            var slainCount = 0;
+
+            if (hasKillCounter)
+            {
+                if (Main.BestiaryTracker?.Kills == null)
+                    throw new InvalidOperationException("Terraria Bestiary kill tracker is not initialized.");
+
+                slainCount = Main.BestiaryTracker.Kills.GetKillCount(npc);
+            }
+
+            int bannerId = BannerSystem.NPCtoBanner(npc.BannerID());
+
+            if (bannerId <= 0)
+            {
+                return new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter,
+                    slainCount,
+                    bannerItemId: null,
+                    bannerKillCount: 0,
+                    killsPerBanner: 0);
+            }
+
+            int bannerItemId = BannerSystem.BannerToItem(bannerId);
+            int killsPerBanner = ItemID.Sets.KillsToBanner[bannerItemId];
+            int bannerKillCount = BannerSystem.GetKillCount(bannerId);
+
+            return new NpcBestiaryKillStatisticsSnapshot(
+                hasKillCounter,
+                slainCount,
+                bannerItemId,
+                bannerKillCount,
+                killsPerBanner);
         }
 
         public static DropRateInfo GetDropRateInfo(ItemDropBestiaryInfoElement element)

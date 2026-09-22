@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using TerrarianCompendium.Acquisition;
+using TerrarianCompendium.Checklist;
+using TerrarianCompendium.Journey;
 
 namespace TerrarianCompendium.Bestiary
 {
@@ -37,15 +39,20 @@ namespace TerrarianCompendium.Bestiary
             new ReadOnlyCollection<NpcCatalogEntry>(new List<NpcCatalogEntry>());
 
         private readonly NpcCatalog _catalog;
+        private readonly ChecklistState _checklistState;
         private readonly Func<NpcCatalogEntry, BestiaryEntryObservation> _entryObservationProvider;
         private readonly BestiaryFilterState _filterState;
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly MerchantSourceIndex _merchantSourceIndex;
-        private readonly Func<NpcCatalogEntry, IReadOnlyCollection<int>, bool> _metadataFilterMatcher;
+        private readonly Func<NpcCatalogEntry, int, bool> _metadataFilterMatcher;
+        private readonly NpcLootIndex _npcLootIndex;
         private readonly BestiaryEntryObservation[] _observedEntries;
         private readonly Func<NpcCatalogEntry, string, bool> _searchMatcher;
         private readonly Action<List<NpcCatalogEntry>, BestiarySortMode, BestiarySortDirection> _sortEntries;
 
+        private long _observedChecklistRevision;
         private long _observedFilterRevision;
+        private long _observedResearchRevision;
         private int _overallEncounteredCount;
         private long _revision;
         private int _scopeEncounteredCount;
@@ -59,6 +66,9 @@ namespace TerrarianCompendium.Bestiary
             NpcCatalog catalog,
             BestiaryFilterState filterState,
             VanillaBestiaryFilterCatalog filterCatalog,
+            ChecklistState checklistState,
+            NpcLootIndex npcLootIndex = null,
+            JourneyResearchState journeyResearchState = null,
             MerchantSourceIndex merchantSourceIndex = null) : this(
             catalog,
             filterState,
@@ -66,6 +76,9 @@ namespace TerrarianCompendium.Bestiary
             VanillaBestiaryNativeBridge.CreateSearchMatcher(),
             CreateMetadataFilterMatcher(filterCatalog),
             VanillaBestiaryNativeBridge.SortEntries,
+            checklistState,
+            npcLootIndex,
+            journeyResearchState,
             merchantSourceIndex)
         {
         }
@@ -75,8 +88,11 @@ namespace TerrarianCompendium.Bestiary
             BestiaryFilterState filterState,
             Func<NpcCatalogEntry, BestiaryEntryObservation> entryObservationProvider,
             Func<NpcCatalogEntry, string, bool> searchMatcher,
-            Func<NpcCatalogEntry, IReadOnlyCollection<int>, bool> metadataFilterMatcher,
+            Func<NpcCatalogEntry, int, bool> metadataFilterMatcher,
             Action<List<NpcCatalogEntry>, BestiarySortMode, BestiarySortDirection> sortEntries,
+            ChecklistState checklistState,
+            NpcLootIndex npcLootIndex = null,
+            JourneyResearchState journeyResearchState = null,
             MerchantSourceIndex merchantSourceIndex = null)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -87,6 +103,9 @@ namespace TerrarianCompendium.Bestiary
             _metadataFilterMatcher = metadataFilterMatcher ??
                                      throw new ArgumentNullException(nameof(metadataFilterMatcher));
             _sortEntries = sortEntries ?? throw new ArgumentNullException(nameof(sortEntries));
+            _checklistState = checklistState ?? throw new ArgumentNullException(nameof(checklistState));
+            _npcLootIndex = npcLootIndex;
+            _journeyResearchState = journeyResearchState;
             _merchantSourceIndex = merchantSourceIndex;
 
             _observedEntries = new BestiaryEntryObservation[_catalog.Count];
@@ -94,7 +113,10 @@ namespace TerrarianCompendium.Bestiary
             for (var index = 0; index < _catalog.Count; index++)
                 _observedEntries[index] = _entryObservationProvider(_catalog.Entries[index]);
 
+            NormalizeUnavailableDropCriterion();
             _observedFilterRevision = _filterState.Revision;
+            _observedChecklistRevision = _checklistState.Revision;
+            _observedResearchRevision = _journeyResearchState?.Revision ?? -1;
             RebuildProjection();
         }
 
@@ -176,21 +198,40 @@ namespace TerrarianCompendium.Bestiary
 
         public bool MerchantStockFilterAvailable => _merchantSourceIndex != null;
 
-        private static Func<NpcCatalogEntry, IReadOnlyCollection<int>, bool> CreateMetadataFilterMatcher(
+        public bool LootAwareFiltersAvailable => _npcLootIndex != null;
+
+        public bool UnresearchedDropsFilterAvailable => _npcLootIndex != null && _journeyResearchState != null;
+
+        private static Func<NpcCatalogEntry, int, bool> CreateMetadataFilterMatcher(
             VanillaBestiaryFilterCatalog filterCatalog)
         {
             if (filterCatalog == null)
                 throw new ArgumentNullException(nameof(filterCatalog));
 
-            return filterCatalog.MatchesAny;
+            return filterCatalog.Matches;
         }
 
         public bool SynchronizeState()
         {
-            bool changed = _observedFilterRevision != _filterState.Revision;
+            NormalizeUnavailableDropCriterion();
+
+            long filterRevision = _filterState.Revision;
+            long checklistRevision = _filterState.UsesChecklistState
+                ? _checklistState.Revision
+                : _observedChecklistRevision;
+            long researchRevision = _filterState.UsesJourneyResearchState
+                ? _journeyResearchState?.Revision ?? -1
+                : _observedResearchRevision;
+            bool changed = _observedFilterRevision != filterRevision ||
+                           _observedChecklistRevision != checklistRevision ||
+                           _observedResearchRevision != researchRevision;
 
             if (changed)
-                _observedFilterRevision = _filterState.Revision;
+            {
+                _observedFilterRevision = filterRevision;
+                _observedChecklistRevision = checklistRevision;
+                _observedResearchRevision = researchRevision;
+            }
 
             for (var index = 0; index < _catalog.Count; index++)
             {
@@ -223,7 +264,8 @@ namespace TerrarianCompendium.Bestiary
             var scopeEncounteredCount = 0;
             var scopeTotalCount = 0;
             bool hasSearch = _searchQuery.Length > 0;
-            IReadOnlyCollection<int> activeNativeFilters = _filterState.ActiveNativeFilterIds;
+            BestiaryFilterCriterion bestiaryCriterion = _filterState.BestiaryCriterion;
+            BestiaryFilterCriterion dropCriterion = _filterState.DropCriterion;
             BestiaryEncounterFilter encounterFilter = _filterState.EncounterFilter;
             bool hasStockOnly = _filterState.HasStockOnly;
 
@@ -239,7 +281,10 @@ namespace TerrarianCompendium.Bestiary
                 if (hasSearch && !_searchMatcher(entry, _searchQuery))
                     continue;
 
-                if (!_metadataFilterMatcher(entry, activeNativeFilters))
+                if (!MatchesBestiaryCriterion(entry, bestiaryCriterion))
+                    continue;
+
+                if (!MatchesDropCriterion(entry, dropCriterion))
                     continue;
 
                 scopeTotalCount++;
@@ -267,6 +312,105 @@ namespace TerrarianCompendium.Bestiary
             _visibleEntries = visibleEntries.Count == 0
                 ? _emptyEntries
                 : new ReadOnlyCollection<NpcCatalogEntry>(visibleEntries);
+        }
+
+        private bool MatchesBestiaryCriterion(NpcCatalogEntry entry, BestiaryFilterCriterion criterion)
+        {
+            switch (criterion.Kind)
+            {
+                case BestiaryFilterCriterionKind.All:
+                    return true;
+
+                case BestiaryFilterCriterionKind.Native:
+                    return _metadataFilterMatcher(entry, criterion.NativeFilterId);
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(criterion),
+                        criterion.Kind,
+                        "Unsupported Bestiary criterion.");
+            }
+        }
+
+        private bool MatchesDropCriterion(NpcCatalogEntry entry, BestiaryFilterCriterion criterion)
+        {
+            switch (criterion.Kind)
+            {
+                case BestiaryFilterCriterionKind.All:
+                    return true;
+
+                case BestiaryFilterCriterionKind.HasDrops:
+                    return _npcLootIndex != null && _npcLootIndex.GetDropsForNpc(entry.NetId).Count > 0;
+
+                case BestiaryFilterCriterionKind.HasMissingDrops:
+                    return HasMissingDrop(entry.NetId);
+
+                case BestiaryFilterCriterionKind.HasUnresearchedDrops:
+                    return HasUnresearchedDrop(entry.NetId);
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(criterion),
+                        criterion.Kind,
+                        "Unsupported drop criterion.");
+            }
+        }
+
+        private bool HasMissingDrop(int npcNetId)
+        {
+            if (_npcLootIndex == null)
+                return false;
+
+            IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(npcNetId);
+
+            foreach (NpcLootRelation relation in relations)
+            {
+                if (!_checklistState.IsFound(relation.ItemId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool HasUnresearchedDrop(int npcNetId)
+        {
+            if (_npcLootIndex == null || _journeyResearchState == null)
+                return false;
+
+            IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(npcNetId);
+
+            foreach (NpcLootRelation relation in relations)
+            {
+                if (_journeyResearchState.IsUnresearched(relation.ItemId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void NormalizeUnavailableDropCriterion()
+        {
+            BestiaryFilterCriterion criterion = _filterState.DropCriterion;
+            bool unavailable;
+
+            switch (criterion.Kind)
+            {
+                case BestiaryFilterCriterionKind.HasDrops:
+                case BestiaryFilterCriterionKind.HasMissingDrops:
+                    unavailable = _npcLootIndex == null;
+                    break;
+
+                case BestiaryFilterCriterionKind.HasUnresearchedDrops:
+                    unavailable = _npcLootIndex == null || _journeyResearchState == null;
+                    break;
+
+                default:
+                    unavailable = false;
+                    break;
+            }
+
+            if (unavailable)
+                _filterState.DropCriterion = BestiaryFilterCriterion.All;
         }
 
         private static string NormalizeSearchQuery(string value)

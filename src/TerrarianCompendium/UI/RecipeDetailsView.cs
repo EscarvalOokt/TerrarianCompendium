@@ -7,6 +7,7 @@ using TerrariaModder.Core.UI;
 using TerrarianCompendium.Catalog;
 using TerrarianCompendium.Crafting;
 using TerrarianCompendium.Details;
+using TerrarianCompendium.Journey;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.Navigation;
 using TerrarianCompendium.Recipes;
@@ -28,7 +29,7 @@ namespace TerrarianCompendium.UI
         private const int VariantSummaryHeight = 18;
         private const int CraftButtonTopGap = 4;
         private const int CraftButtonHeight = 28;
-        private const int CraftButtonWidth = 56;
+        private const int CraftButtonWidth = 28;
         private const int RowHeight = 18;
         private const int ItemRowHeight = 26;
         private const int ItemIconSize = 24;
@@ -43,6 +44,7 @@ namespace TerrarianCompendium.UI
         private readonly RecipeFavoriteState _favoriteState;
         private readonly List<bool> _iconNavigationEnabled = new();
         private readonly List<VanillaItemIcon> _icons = new();
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly CompendiumLocalization _localization;
         private readonly RecipeDetailsModel _model;
         private readonly BrowserNavigationState _navigationState;
@@ -62,12 +64,14 @@ namespace TerrarianCompendium.UI
             ItemTextIndex itemTextIndex,
             RecipeStationDisplayIndex stationDisplayIndex,
             VanillaDirectCraftingService directCraftingService,
-            CompendiumLocalization localization)
+            CompendiumLocalization localization,
+            JourneyResearchState journeyResearchState = null)
         {
             _model = model ?? throw new ArgumentNullException(nameof(model));
             _favoriteState = favoriteState ?? throw new ArgumentNullException(nameof(favoriteState));
             _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+            _journeyResearchState = journeyResearchState;
             Width = StyleDimension.Fill;
             SetPadding(0f);
 
@@ -90,7 +94,8 @@ namespace TerrarianCompendium.UI
                 directCraftingService,
                 itemTextIndex ?? throw new ArgumentNullException(nameof(itemTextIndex)),
                 stationDisplayIndex,
-                _localization);
+                _localization,
+                _journeyResearchState);
             Append(_craftButton);
             HideCraftButton();
         }
@@ -321,7 +326,8 @@ namespace TerrarianCompendium.UI
                 ContentPadding,
                 ContentPadding,
                 IconSize,
-                navigationEnabled: true);
+                navigationEnabled: true,
+                showResearchBadge: true);
 
             int cursor = ContentPadding + IdentityHeight + GetVariantControlsHeight();
             cursor += GetSectionHeaderHeight();
@@ -337,7 +343,8 @@ namespace TerrarianCompendium.UI
                     ContentPadding,
                     cursor + Math.Max(0, (ItemRowHeight - ItemIconSize) / 2),
                     ItemIconSize,
-                    navigationEnabled: true);
+                    navigationEnabled: true,
+                    showResearchBadge: !ingredient.IsRecipeGroup);
                 cursor += ItemRowHeight;
 
                 if (!ingredient.IsRecipeGroup)
@@ -351,7 +358,8 @@ namespace TerrarianCompendium.UI
                         ContentPadding + AlternativeIndent,
                         cursor + Math.Max(0, (AlternativeRowHeight - AlternativeIconSize) / 2),
                         AlternativeIconSize,
-                        navigationEnabled: true);
+                        navigationEnabled: true,
+                        showResearchBadge: true);
                     cursor += AlternativeRowHeight;
                 }
             }
@@ -369,7 +377,8 @@ namespace TerrarianCompendium.UI
                     ContentPadding,
                     cursor + Math.Max(0, (ItemRowHeight - ItemIconSize) / 2),
                     ItemIconSize,
-                    navigationEnabled: true);
+                    navigationEnabled: true,
+                    showResearchBadge: false);
             }
 
             HideUnusedIcons(iconIndex);
@@ -567,12 +576,13 @@ namespace TerrarianCompendium.UI
             int left,
             int top,
             int size,
-            bool navigationEnabled)
+            bool navigationEnabled,
+            bool showResearchBadge)
         {
             while (_icons.Count <= index)
             {
                 int createdIndex = _icons.Count;
-                var icon = new VanillaItemIcon();
+                var icon = new VanillaItemIcon(_journeyResearchState);
                 icon.OnLeftClick += (evt, _) => OnItemIconClicked(createdIndex, evt);
                 _icons.Add(icon);
                 _iconNavigationEnabled.Add(false);
@@ -582,6 +592,7 @@ namespace TerrarianCompendium.UI
             VanillaItemIcon itemIcon = _icons[index];
             itemIcon.ItemId = item.ItemId;
             itemIcon.IsMissing = item.IsMissing;
+            itemIcon.ShowResearchBadge = showResearchBadge;
             itemIcon.Left.Set(left, 0f);
             itemIcon.Top.Set(top, 0f);
             itemIcon.Width.Set(size, 0f);
@@ -604,12 +615,15 @@ namespace TerrarianCompendium.UI
 
         private void OnItemIconClicked(int index, UIMouseEvent evt)
         {
-            if (index < 0 || index >= _icons.Count || !_iconNavigationEnabled[index])
+            if (index < 0 || index >= _icons.Count)
                 return;
 
             VanillaItemIcon icon = _icons[index];
 
             if (evt.Target != icon || icon.ItemId <= 0)
+                return;
+
+            if (icon.ConsumeJourneyDuplicationClick() || !_iconNavigationEnabled[index])
                 return;
 
             _navigationState.Navigate(BrowserDestination.ForItem(icon.ItemId));
@@ -719,35 +733,27 @@ namespace TerrarianCompendium.UI
 
             foreach (RecipeDetailsIngredientProjection ingredient in projection.Ingredients)
             {
-                string ingredientText = ingredient.IsRecipeGroup
-                    ? _localization.Format(
-                        CompendiumTextKeys.Recipes.IngredientAnyOf,
-                        ingredient.DisplayItem.Name,
-                        ingredient.Stack,
-                        ingredient.ValidItems.Count)
-                    : _localization.Format(
-                        CompendiumTextKeys.Recipes.Ingredient,
-                        ingredient.DisplayItem.Name,
-                        ingredient.Stack);
+                string stackText = _localization.Format(CompendiumTextKeys.Common.Stack, ingredient.Stack);
+                DrawItemRowText(stackText, x, cursor, width, ItemRowHeight, ItemIconSize, UIColors.Text);
 
-                DrawItemRowText(ingredientText, x, cursor, width, ItemRowHeight, ItemIconSize, UIColors.Text);
+                if (ingredient.IsRecipeGroup)
+                {
+                    DrawRecipeGroupLabel(
+                        stackText,
+                        _localization.Get(CompendiumTextKeys.Recipes.AnyOf),
+                        x,
+                        cursor,
+                        width,
+                        ItemRowHeight,
+                        ItemIconSize);
+                }
+
                 cursor += ItemRowHeight;
 
                 if (!ingredient.IsRecipeGroup)
                     continue;
 
-                foreach (RecipeDetailsItemReference validItem in ingredient.ValidItems)
-                {
-                    DrawItemRowText(
-                        validItem.Name,
-                        x + AlternativeIndent,
-                        cursor,
-                        Math.Max(0, width - AlternativeIndent),
-                        AlternativeRowHeight,
-                        AlternativeIconSize,
-                        UIColors.TextDim);
-                    cursor += AlternativeRowHeight;
-                }
+                cursor += ingredient.ValidItems.Count * AlternativeRowHeight;
             }
         }
 
@@ -854,6 +860,39 @@ namespace TerrarianCompendium.UI
             DrawTextRow(text, x, cursor, width);
             cursor += RowHeight;
             requirementCount++;
+        }
+
+        private void DrawRecipeGroupLabel(
+            string stackText,
+            string label,
+            int x,
+            int y,
+            int width,
+            int height,
+            int iconSize)
+        {
+            int textX = x + iconSize + ItemTextGap;
+            int labelX = textX + UIRenderer.MeasureText(stackText) + ItemTextGap;
+            int labelWidth = Math.Max(0, x + width - labelX);
+
+            if (labelWidth <= 0)
+                return;
+
+            string displayLabel = TruncatedTextPresentation.Truncate(label, labelWidth, out bool wasTruncated);
+
+            if (displayLabel.Length == 0)
+                return;
+
+            int textY = y + Math.Max(0, (height - TextHeight) / 2);
+            UIRenderer.DrawText(displayLabel, labelX, textY, UIColors.TextDim);
+            TruncatedTextPresentation.ShowTooltipIfTruncated(
+                label,
+                wasTruncated,
+                labelX,
+                y,
+                labelWidth,
+                height,
+                IsMouseHovering);
         }
 
         private void DrawItemRowText(string text, int x, int y, int width, int height, int iconSize, Color4 textColor)

@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Terraria.ID;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
 using TerrariaModder.Core.UI.Widgets;
 using TerrarianCompendium.Bestiary;
 using TerrarianCompendium.Details;
+using TerrarianCompendium.Journey;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.Navigation;
 using TerrarianCompendium.UI.Vanilla;
@@ -28,22 +31,24 @@ namespace TerrarianCompendium.UI
         private const int MetadataIconColumns = 6;
         private const int StockIconSize = 30;
         private const int StockIconGap = 2;
-        private const int StockHeaderControlGap = 4;
-        private const int StockHeaderRowHeight = 24;
+        private const int KillStatisticsLabelGap = 8;
+        private const int KillStatisticsItemTextGap = 4;
+        private readonly VanillaItemIcon _bannerIcon;
         private readonly VanillaIconButton _classicButton;
         private readonly VanillaCoinValueElement _coinValueElement;
         private readonly VanillaIconButton _expertButton;
         private readonly VanillaBestiaryFilterCatalog _filterCatalog;
         private readonly NpcIdentityIcon _icon;
         private readonly List<DebuffImmunityIcon> _immunityIcons = new();
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly CompendiumLocalization _localization;
         private readonly List<LootRowElement> _lootRowElements = new();
         private readonly VanillaIconButton _masterButton;
         private readonly NpcDetailsModel _model;
         private readonly BrowserNavigationState _navigationState;
         private readonly List<VanillaBestiaryConditionIcon> _spawnConditionIcons = new();
+        private readonly List<VanillaIconValueElement> _statElements = new();
         private readonly List<VanillaItemRelationButton> _stockButtons = new();
-        private readonly VanillaTextButton _stockConditionsButton;
         private readonly MerchantStockConditionsPopoverContent _stockConditionsContent;
 
         private int _coinsContentTop;
@@ -51,13 +56,19 @@ namespace TerrarianCompendium.UI
         private NpcDifficultyMode _difficultyMode = NpcDifficultyMode.Classic;
         private bool _hasNpc;
         private int _immunityContentTop;
+        private int _killStatisticsContentTop;
         private long _localizationRevision = -1;
         private int _lootContentTop;
         private int _npcNetId;
         private NpcDetailsProjection _projection;
         private bool _refreshRequired = true;
         private int _spawnContentTop;
+
+        private IReadOnlyList<NpcDetailsStatPresentation> _statPresentations =
+            Array.Empty<NpcDetailsStatPresentation>();
+
         private int _statsContentTop;
+        private int _stockConditionsItemId;
         private VanillaPopover _stockConditionsPopover;
         private int _stockContentTop;
         private UIElement _stockPopoverHost;
@@ -66,12 +77,14 @@ namespace TerrarianCompendium.UI
             NpcDetailsModel model,
             BrowserNavigationState navigationState,
             VanillaBestiaryFilterCatalog filterCatalog,
-            CompendiumLocalization localization)
+            CompendiumLocalization localization,
+            JourneyResearchState journeyResearchState = null)
         {
             _model = model ?? throw new ArgumentNullException(nameof(model));
             _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
             _filterCatalog = filterCatalog ?? throw new ArgumentNullException(nameof(filterCatalog));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+            _journeyResearchState = journeyResearchState;
             Width = StyleDimension.Fill;
             SetPadding(0f);
 
@@ -81,6 +94,13 @@ namespace TerrarianCompendium.UI
             _coinValueElement = new VanillaCoinValueElement();
             Append(_coinValueElement);
 
+            _bannerIcon = new VanillaItemIcon(_journeyResearchState)
+            {
+                ShowTooltip = true
+            };
+            _bannerIcon.OnLeftClick += OnBannerItemClicked;
+            Append(_bannerIcon);
+
             _classicButton = CreateDifficultyButton(NpcDifficultyMode.Classic);
             _expertButton = CreateDifficultyButton(NpcDifficultyMode.Expert);
             _masterButton = CreateDifficultyButton(NpcDifficultyMode.Master);
@@ -88,15 +108,7 @@ namespace TerrarianCompendium.UI
             Append(_expertButton);
             Append(_masterButton);
 
-            _stockConditionsButton = new VanillaTextButton(
-                _localization.Get(CompendiumTextKeys.NpcDetails.Conditions),
-                ToggleStockConditionsPopover)
-            {
-                TooltipText = _localization.Get(CompendiumTextKeys.NpcDetails.ConditionsTooltip)
-            };
-            Append(_stockConditionsButton);
-
-            _stockConditionsContent = new MerchantStockConditionsPopoverContent(_localization);
+            _stockConditionsContent = new MerchantStockConditionsPopoverContent(_localization, _journeyResearchState);
 
             HideDynamicChildren();
             SynchronizeDifficultyButtons();
@@ -118,7 +130,6 @@ namespace TerrarianCompendium.UI
                 throw new InvalidOperationException("NPC stock conditions popover host is already attached.");
 
             _stockPopoverHost = host;
-            _stockConditionsPopover = new VanillaPopover(host, _stockConditionsButton, _stockConditionsContent);
         }
 
         public bool TryCloseTransientSurface()
@@ -127,7 +138,8 @@ namespace TerrarianCompendium.UI
                 return false;
 
             _stockConditionsPopover.Close();
-            _stockConditionsButton.IsActive = false;
+            _stockConditionsItemId = 0;
+            _stockConditionsContent.Bind(null);
             return true;
         }
 
@@ -140,6 +152,8 @@ namespace TerrarianCompendium.UI
             }
 
             TryCloseTransientSurface();
+            _stockConditionsItemId = 0;
+            _stockConditionsContent.Bind(null);
             _hasNpc = true;
             _npcNetId = npcNetId;
             _refreshRequired = true;
@@ -153,7 +167,9 @@ namespace TerrarianCompendium.UI
             _npcNetId = 0;
             _projection = null;
             _refreshRequired = false;
-            _stockConditionsContent.Bind(Array.Empty<NpcDetailsMerchantStockEntry>());
+            _stockConditionsItemId = 0;
+            _statPresentations = Array.Empty<NpcDetailsStatPresentation>();
+            _stockConditionsContent.Bind(null);
             HideDynamicChildren();
             ContentHeight = ContentPadding * 2 + TextHeight;
             Height.Set(ContentHeight, 0f);
@@ -164,7 +180,6 @@ namespace TerrarianCompendium.UI
             SynchronizeLocalization();
             Refresh();
             base.Update(gameTime);
-            _stockConditionsButton.IsActive = HasOpenTransientSurface;
         }
 
         public override void OnDeactivate()
@@ -178,15 +193,17 @@ namespace TerrarianCompendium.UI
             if (_projection != null)
             {
                 LayoutDifficultyButtons(_difficultyContentTop);
+                LayoutStats(_statsContentTop);
+
+                if (_projection.HasKillStatistics)
+                    LayoutKillStatistics(_killStatisticsContentTop);
+
                 LayoutSpawnConditions(_spawnContentTop);
                 LayoutImmunities(_immunityContentTop);
                 LayoutCoinValue(_coinsContentTop);
 
                 if (_projection.MerchantStock.Count > 0)
-                {
                     LayoutStock(_stockContentTop);
-                    LayoutStockConditionsButton(_stockContentTop);
-                }
             }
 
             base.RecalculateChildren();
@@ -226,7 +243,26 @@ namespace TerrarianCompendium.UI
                 x,
                 viewY + _statsContentTop,
                 width);
-            DrawStats(_projection, x, viewY + _statsContentTop, width);
+
+            if (_projection.Stats == null)
+            {
+                DrawTextRow(
+                    _localization.Get(CompendiumTextKeys.NpcDetails.StatsUnavailable),
+                    x,
+                    viewY + _statsContentTop,
+                    width,
+                    UIColors.TextDim);
+            }
+
+            if (_projection.HasKillStatistics)
+            {
+                DrawSectionHeaderAt(
+                    _localization.Get(CompendiumTextKeys.NpcDetails.KillStatistics),
+                    x,
+                    viewY + _killStatisticsContentTop,
+                    width);
+                DrawKillStatistics(x, viewY + _killStatisticsContentTop, width);
+            }
 
             DrawSectionHeaderAt(
                 _localization.Get(CompendiumTextKeys.NpcDetails.FoundIn),
@@ -266,7 +302,7 @@ namespace TerrarianCompendium.UI
             DrawCoins(_projection, x, viewY + _coinsContentTop, width);
 
             if (_projection.MerchantStock.Count > 0)
-                DrawStockSectionHeaderAt(
+                DrawSectionHeaderAt(
                     _localization.Get(CompendiumTextKeys.NpcDetails.Stock),
                     x,
                     viewY + _stockContentTop,
@@ -310,6 +346,8 @@ namespace TerrarianCompendium.UI
 
             if (_projection == null)
             {
+                TryCloseTransientSurface();
+                _statPresentations = Array.Empty<NpcDetailsStatPresentation>();
                 HideDynamicChildren();
                 ContentHeight = ContentPadding * 2 + TextHeight;
                 Height.Set(ContentHeight, 0f);
@@ -332,7 +370,41 @@ namespace TerrarianCompendium.UI
 
             cursor = AdvanceSectionHeader(cursor);
             _statsContentTop = cursor;
-            cursor += GetStatsHeight(_projection);
+            _statPresentations = NpcDetailsPresentation.BuildStats(_projection, _localization);
+            EnsureStatElementCapacity(_statPresentations.Count);
+
+            for (var index = 0; index < _statPresentations.Count; index++)
+                BindStatElement(_statElements[index], _statPresentations[index]);
+
+            HideUnusedStatElements(_statPresentations.Count);
+            LayoutStats(_statsContentTop);
+            cursor += GetStatsHeight(_projection, _statPresentations.Count, GetAvailableContentWidth());
+
+            if (_projection.HasKillStatistics)
+            {
+                cursor = AdvanceSectionHeader(cursor);
+                _killStatisticsContentTop = cursor;
+
+                if (_projection.BannerItem != null)
+                {
+                    NpcDetailsItemReference bannerItem = _projection.BannerItem;
+                    _bannerIcon.ItemId = bannerItem.ItemId;
+                    _bannerIcon.IsMissing = bannerItem.IsCollectionTracked && !bannerItem.IsFound;
+                    _bannerIcon.IgnoresMouseInteraction = !bannerItem.IsNavigable;
+                    LayoutKillStatistics(cursor);
+                }
+                else
+                {
+                    HideBannerIcon();
+                }
+
+                cursor += GetKillStatisticsHeight(_projection);
+            }
+            else
+            {
+                _killStatisticsContentTop = 0;
+                HideBannerIcon();
+            }
 
             cursor = AdvanceSectionHeader(cursor);
             _spawnContentTop = cursor;
@@ -369,35 +441,36 @@ namespace TerrarianCompendium.UI
 
             if (_projection.MerchantStock.Count > 0)
             {
-                cursor = AdvanceStockSectionHeader(cursor);
+                cursor = AdvanceSectionHeader(cursor);
                 _stockContentTop = cursor;
                 EnsureStockButtonCapacity(_projection.MerchantStock.Count);
 
                 for (var index = 0; index < _projection.MerchantStock.Count; index++)
                 {
-                    NpcDetailsItemReference item = _projection.MerchantStock[index].Item;
-                    _stockButtons[index]
-                        .Bind(
-                            item.ItemId,
-                            item.IsCollectionTracked && !item.IsFound,
-                            item.IsNavigable ? item.ItemId : 0);
+                    NpcDetailsMerchantStockEntry entry = _projection.MerchantStock[index];
+                    NpcDetailsItemReference item = entry.Item;
+                    VanillaItemRelationButton button = _stockButtons[index];
+                    button.Bind(
+                        item.ItemId,
+                        item.IsCollectionTracked && !item.IsFound,
+                        item.IsNavigable ? item.ItemId : 0,
+                        () => RegisterStockSupplementalTooltip(entry),
+                        entry.IsAlwaysAvailable ? null : () => OpenStockConditionDetails(entry, button));
                 }
 
                 HideUnusedStockButtons(_projection.MerchantStock.Count);
                 LayoutStock(_stockContentTop);
-                LayoutStockConditionsButton(_stockContentTop);
-                _stockConditionsContent.Bind(_projection.MerchantStock);
                 cursor += CalculateStockGridHeight(_projection.MerchantStock.Count, GetAvailableContentWidth());
 
                 if (HasOpenTransientSurface)
-                    _stockConditionsPopover.Recalculate();
+                    SynchronizeOpenStockConditionDetails();
             }
             else
             {
                 TryCloseTransientSurface();
+                _stockConditionsItemId = 0;
                 HideUnusedStockButtons(0);
-                HideStockConditionsButton();
-                _stockConditionsContent.Bind(Array.Empty<NpcDetailsMerchantStockEntry>());
+                _stockConditionsContent.Bind(null);
             }
 
             cursor = AdvanceSectionHeader(cursor);
@@ -447,12 +520,7 @@ namespace TerrarianCompendium.UI
             _classicButton.TooltipText = GetDifficultyText(NpcDifficultyMode.Classic);
             _expertButton.TooltipText = GetDifficultyText(NpcDifficultyMode.Expert);
             _masterButton.TooltipText = GetDifficultyText(NpcDifficultyMode.Master);
-            _stockConditionsButton.Text = _localization.Get(CompendiumTextKeys.NpcDetails.Conditions);
-            _stockConditionsButton.TooltipText = _localization.Get(CompendiumTextKeys.NpcDetails.ConditionsTooltip);
             _refreshRequired = true;
-
-            if (HasOpenTransientSurface)
-                _stockConditionsPopover.Recalculate();
         }
 
         private string GetDifficultyText(NpcDifficultyMode difficulty)
@@ -503,6 +571,46 @@ namespace TerrarianCompendium.UI
                 top,
                 DifficultyButtonSize,
                 DifficultyButtonSize);
+        }
+
+        private void LayoutStats(int top)
+        {
+            int contentWidth = GetAvailableContentWidth();
+            int gridTop = top;
+
+            if (_projection?.Stats == null)
+            {
+                gridTop += RowHeight;
+
+                if (_statPresentations.Count > 0)
+                    gridTop += VanillaIconValueLayout.RowGap;
+            }
+
+            for (var index = 0; index < _statPresentations.Count; index++)
+            {
+                VanillaIconValueCellBounds bounds = VanillaIconValueLayout.CalculateCellBounds(
+                    index,
+                    _statPresentations.Count,
+                    contentWidth);
+                LayoutElement(
+                    _statElements[index],
+                    ContentPadding + bounds.X,
+                    gridTop + bounds.Y,
+                    bounds.Width,
+                    bounds.Height);
+            }
+        }
+
+        private void LayoutKillStatistics(int top)
+        {
+            if (_projection?.BannerItem == null)
+            {
+                HideBannerIcon();
+                return;
+            }
+
+            int bannerTop = top + (_projection.HasKillCounter ? RowHeight : 0);
+            LayoutElement(_bannerIcon, ContentPadding, bannerTop, StockIconSize, StockIconSize);
         }
 
         private void LayoutCoinValue(int top)
@@ -581,27 +689,6 @@ namespace TerrarianCompendium.UI
             }
         }
 
-        private void LayoutStockConditionsButton(int stockContentTop)
-        {
-            if (_projection?.MerchantStock.Count <= 0)
-            {
-                HideStockConditionsButton();
-                return;
-            }
-
-            int availableWidth = GetAvailableContentWidth();
-            int naturalWidth =
-                VanillaTextButton.MeasureNaturalWidth(_localization.Get(CompendiumTextKeys.NpcDetails.Conditions));
-            int buttonWidth = Math.Min(availableWidth, naturalWidth);
-            int headerTop = stockContentTop - DetailsSectionLayout.ContentGap - StockHeaderRowHeight;
-            LayoutElement(
-                _stockConditionsButton,
-                ContentPadding + Math.Max(0, availableWidth - buttonWidth),
-                headerTop,
-                buttonWidth,
-                StockHeaderRowHeight);
-        }
-
         private int GetAvailableContentWidth()
         {
             return Math.Max(0, (int)GetInnerDimensions().Width - ContentPadding * 2);
@@ -635,12 +722,22 @@ namespace TerrarianCompendium.UI
             return cursor + DetailsSectionLayout.HeaderHeight;
         }
 
-        private static int AdvanceStockSectionHeader(int cursor)
+        private int GetKillStatisticsLabelWidth()
         {
-            return cursor +
-                   DetailsSectionLayout.SeparatorHeight +
-                   StockHeaderRowHeight +
-                   DetailsSectionLayout.ContentGap;
+            int width = Math.Max(
+                UIRenderer.MeasureText(_localization.Get(CompendiumTextKeys.NpcDetails.Slain)),
+                UIRenderer.MeasureText(_localization.Get(CompendiumTextKeys.NpcDetails.BannerProgress)));
+            return Math.Min(GetAvailableContentWidth(), width + KillStatisticsLabelGap);
+        }
+
+        private static int GetKillStatisticsHeight(NpcDetailsProjection projection)
+        {
+            int height = projection.HasKillCounter ? RowHeight : 0;
+
+            if (projection.BannerItem != null)
+                height += StockIconSize + RowHeight;
+
+            return height;
         }
 
         private static int GetMetadataIconGridHeight(int count)
@@ -652,71 +749,134 @@ namespace TerrarianCompendium.UI
             return rows * MetadataIconSize + Math.Max(0, rows - 1) * MetadataIconGap;
         }
 
-        private static int GetStatsHeight(NpcDetailsProjection projection)
+        private static int GetStatsHeight(NpcDetailsProjection projection, int statCount, int contentWidth)
         {
-            int rows = projection.Stats == null ? 2 : 5;
+            int height = projection.Stats == null ? RowHeight : 0;
 
-            if (projection.RareSpawnRarityLevel.HasValue)
-                rows++;
+            if (statCount <= 0)
+                return height;
 
-            return rows * RowHeight;
+            if (height > 0)
+                height += VanillaIconValueLayout.RowGap;
+
+            return height + VanillaIconValueLayout.CalculateHeight(statCount, contentWidth);
         }
 
-        private void DrawStats(NpcDetailsProjection projection, int x, int y, int width)
+        private void BindStatElement(VanillaIconValueElement element, NpcDetailsStatPresentation presentation)
         {
-            int rowY = y;
-
-            if (projection.Stats == null)
+            switch (presentation.Kind)
             {
-                DrawTextRow(
-                    _localization.Get(CompendiumTextKeys.NpcDetails.StatsUnavailable),
-                    x,
-                    rowY,
-                    width,
-                    UIColors.TextDim);
-                rowY += RowHeight;
+                case NpcDetailsStatKind.Damage:
+                    BindItemTextureStat(element, ItemID.IronBroadsword, presentation);
+                    break;
+                case NpcDetailsStatKind.MaxLife:
+                    BindItemTextureStat(element, ItemID.LifeCrystal, presentation);
+                    break;
+                case NpcDetailsStatKind.Defense:
+                    element.Bind(
+                        VanillaPresentationIcons.DrawDefenseCounterIcon,
+                        presentation.ValueText,
+                        presentation.TooltipText);
+                    break;
+                case NpcDetailsStatKind.KnockbackTaken:
+                    BindItemTextureStat(element, ItemID.CobaltShield, presentation);
+                    break;
+                case NpcDetailsStatKind.BestiaryRarity:
+                    element.Bind(
+                        VanillaPresentationIcons.DrawBestiaryRankLight,
+                        presentation.ValueText,
+                        presentation.TooltipText);
+                    break;
+                case NpcDetailsStatKind.RareCreatureLevel:
+                    BindItemTextureStat(element, ItemID.LifeformAnalyzer, presentation, () => UIColors.TextDim);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(presentation),
+                        presentation.Kind,
+                        "Unsupported NPC Details stat kind.");
             }
-            else
+        }
+
+        private static void BindItemTextureStat(
+            VanillaIconValueElement element,
+            int itemId,
+            NpcDetailsStatPresentation presentation,
+            Func<Color4> valueColorProvider = null)
+        {
+            AsyncItemIconRenderer.RequestAsync(itemId);
+            element.Bind(
+                bounds => AsyncItemIconRenderer.Draw(itemId, bounds.X, bounds.Y, bounds.Width, bounds.Height),
+                presentation.ValueText,
+                presentation.TooltipText,
+                valueColorProvider);
+        }
+
+        private void EnsureStatElementCapacity(int count)
+        {
+            while (_statElements.Count < count)
             {
-                NpcBestiaryStatsSnapshot stats = projection.Stats;
+                var element = new VanillaIconValueElement();
+                _statElements.Add(element);
+                Append(element);
+            }
+        }
 
-                DrawTextRow(_localization.Format(CompendiumTextKeys.NpcDetails.Damage, stats.Damage), x, rowY, width);
-                rowY += RowHeight;
+        private void HideUnusedStatElements(int startIndex)
+        {
+            for (int index = startIndex; index < _statElements.Count; index++)
+                _statElements[index].Hide();
+        }
 
-                DrawTextRow(_localization.Format(CompendiumTextKeys.NpcDetails.MaxLife, stats.LifeMax), x, rowY, width);
-                rowY += RowHeight;
+        private void DrawKillStatistics(int x, int y, int width)
+        {
+            int labelWidth = GetKillStatisticsLabelWidth();
+            int valueWidth = Math.Max(0, width - labelWidth);
+            int cursor = y;
 
-                DrawTextRow(_localization.Format(CompendiumTextKeys.NpcDetails.Defense, stats.Defense), x, rowY, width);
-                rowY += RowHeight;
-
-                DrawTextRow(
-                    _localization.Format(CompendiumTextKeys.NpcDetails.KnockbackTaken, stats.KnockbackResist * 100f),
+            if (_projection.HasKillCounter)
+            {
+                DrawKillStatisticsRow(
+                    _localization.Get(CompendiumTextKeys.NpcDetails.Slain),
+                    _projection.SlainCount.ToString(CultureInfo.InvariantCulture),
                     x,
-                    rowY,
-                    width);
-                rowY += RowHeight;
+                    cursor,
+                    labelWidth,
+                    valueWidth);
+                cursor += RowHeight;
             }
 
+            if (_projection.BannerItem == null)
+                return;
+
+            int bannerNameX = x + StockIconSize + KillStatisticsItemTextGap;
+            int bannerNameWidth = Math.Max(0, x + width - bannerNameX);
             DrawTextRow(
-                _localization.Format(
-                    CompendiumTextKeys.NpcDetails.Rarity,
-                    FormatRarity(projection.BestiaryRarityStars)),
-                x,
-                rowY,
-                width);
-            rowY += RowHeight;
+                _projection.BannerItem.Name,
+                bannerNameX,
+                cursor + Math.Max(0, (StockIconSize - RowHeight) / 2),
+                bannerNameWidth,
+                UIColors.Text);
+            cursor += StockIconSize;
 
-            if (projection.RareSpawnRarityLevel.HasValue)
-            {
-                DrawTextRow(
-                    _localization.Format(
-                        CompendiumTextKeys.NpcDetails.RareCreature,
-                        projection.RareSpawnRarityLevel.Value),
-                    x,
-                    rowY,
-                    width,
-                    UIColors.TextDim);
-            }
+            var progress = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} / {1}",
+                _projection.BannerProgress,
+                _projection.BannerProgressTarget);
+            DrawKillStatisticsRow(
+                _localization.Get(CompendiumTextKeys.NpcDetails.BannerProgress),
+                progress,
+                x,
+                cursor,
+                labelWidth,
+                valueWidth);
+        }
+
+        private void DrawKillStatisticsRow(string label, string value, int x, int y, int labelWidth, int valueWidth)
+        {
+            DrawTextRow(label, x, y, Math.Max(0, labelWidth - KillStatisticsLabelGap), UIColors.TextDim);
+            DrawTextRow(value, x + labelWidth, y, valueWidth, UIColors.Text);
         }
 
         private void DrawCoins(NpcDetailsProjection projection, int x, int y, int width)
@@ -728,11 +888,6 @@ namespace TerrarianCompendium.UI
                     y,
                     width,
                     UIColors.TextDim);
-        }
-
-        private string FormatRarity(int stars)
-        {
-            return stars <= 0 ? _localization.Get(CompendiumTextKeys.Common.None) : new string('★', stars);
         }
 
         private void DrawIdentityText(NpcDetailsProjection projection, int x, int y, int width)
@@ -776,42 +931,6 @@ namespace TerrarianCompendium.UI
                 IsMouseHovering);
         }
 
-        private void DrawStockSectionHeaderAt(string title, int x, int contentY, int width)
-        {
-            int titleY = contentY - DetailsSectionLayout.ContentGap - StockHeaderRowHeight;
-            int dividerY = titleY - DetailsSectionLayout.SeparatorHeight;
-
-            if (width > 0)
-            {
-                UIRenderer.DrawRect(
-                    x,
-                    dividerY + DetailsSectionLayout.SeparatorSpacing,
-                    width,
-                    DetailsSectionLayout.DividerHeight,
-                    UIColors.Divider);
-            }
-
-            int buttonWidth = Math.Min(
-                width,
-                VanillaTextButton.MeasureNaturalWidth(_localization.Get(CompendiumTextKeys.NpcDetails.Conditions)));
-            int titleWidth = Math.Max(0, width - buttonWidth - StockHeaderControlGap);
-            string displayTitle = TruncatedTextPresentation.Truncate(title, titleWidth, out bool wasTruncated);
-
-            if (displayTitle.Length == 0)
-                return;
-
-            int textY = titleY + Math.Max(0, (StockHeaderRowHeight - TextHeight) / 2);
-            UIRenderer.DrawText(displayTitle, x, textY, UIColors.TextTitle);
-            TruncatedTextPresentation.ShowTooltipIfTruncated(
-                title,
-                wasTruncated,
-                x,
-                titleY,
-                titleWidth,
-                StockHeaderRowHeight,
-                IsMouseHovering);
-        }
-
         private void DrawSectionHeaderAt(string title, int x, int contentY, int width)
         {
             int titleY = contentY - DetailsSectionLayout.ContentGap - DetailsSectionLayout.TitleHeight;
@@ -842,11 +961,6 @@ namespace TerrarianCompendium.UI
                 width,
                 DetailsSectionLayout.TitleHeight,
                 IsMouseHovering);
-        }
-
-        private void DrawTextRow(string text, int x, int y, int width)
-        {
-            DrawTextRow(text, x, y, width, UIColors.Text);
         }
 
         private void DrawTextRow(string text, int x, int y, int width, Color4 color)
@@ -890,11 +1004,76 @@ namespace TerrarianCompendium.UI
             }
         }
 
+        private void RegisterStockSupplementalTooltip(NpcDetailsMerchantStockEntry entry)
+        {
+            if (entry == null || entry.IsAlwaysAvailable)
+                return;
+
+            string orText = _localization.Get(CompendiumTextKeys.Common.Or);
+            var registeredVariantCount = 0;
+
+            for (var variantIndex = 0; variantIndex < entry.Variants.Count; variantIndex++)
+            {
+                NpcDetailsMerchantVariant variant = entry.Variants[variantIndex];
+                var tokens = new List<SupplementalTooltip.VisualToken>(
+                    variant.Conditions.Count + (variant.RandomStock ? 1 : 0) + (variant.ShopCapacityLimited ? 1 : 0));
+
+                for (var conditionIndex = 0; conditionIndex < variant.Conditions.Count; conditionIndex++)
+                {
+                    MerchantConditionVisualDescriptor descriptor =
+                        MerchantConditionIconPresentation.Describe(variant.Conditions[conditionIndex].Condition);
+                    MerchantConditionIconPresentation.Request(descriptor);
+                    tokens.Add(CreateMerchantConditionVisualToken(descriptor));
+                }
+
+                if (variant.RandomStock)
+                {
+                    MerchantConditionVisualDescriptor descriptor =
+                        MerchantConditionIconPresentation.DescribeRandomStock();
+                    MerchantConditionIconPresentation.Request(descriptor);
+                    tokens.Add(CreateMerchantConditionVisualToken(descriptor));
+                }
+
+                if (variant.ShopCapacityLimited)
+                {
+                    MerchantConditionVisualDescriptor descriptor =
+                        MerchantConditionIconPresentation.DescribeShopCapacityLimited();
+                    MerchantConditionIconPresentation.Request(descriptor);
+                    tokens.Add(CreateMerchantConditionVisualToken(descriptor));
+                }
+
+                if (tokens.Count == 0)
+                    continue;
+
+                if (registeredVariantCount > 0)
+                    SupplementalTooltip.RegisterText(orText, UIColors.TextDim);
+
+                SupplementalTooltip.RegisterVisualRow(tokens, MerchantConditionIconPresentation.TokenGap);
+                registeredVariantCount++;
+            }
+
+            SupplementalTooltip.RegisterText(
+                _localization.Get(CompendiumTextKeys.Merchant.ConditionDetailsHint),
+                UIColors.TextDim);
+        }
+
+        private static SupplementalTooltip.VisualToken CreateMerchantConditionVisualToken(
+            MerchantConditionVisualDescriptor descriptor)
+        {
+            int width = MerchantConditionIconPresentation.MeasureWidth(descriptor);
+
+            return new SupplementalTooltip.VisualToken(
+                width,
+                MerchantConditionIconPresentation.IconSize,
+                (x, y, tokenWidth, tokenHeight) =>
+                    MerchantConditionIconPresentation.Draw(descriptor, x, y, tokenWidth, tokenHeight));
+        }
+
         private void EnsureStockButtonCapacity(int count)
         {
             while (_stockButtons.Count < count)
             {
-                var button = new VanillaItemRelationButton(NavigateToItem);
+                var button = new VanillaItemRelationButton(NavigateToItem, _journeyResearchState);
                 _stockButtons.Add(button);
                 Append(button);
             }
@@ -906,27 +1085,49 @@ namespace TerrarianCompendium.UI
                 _stockButtons[index].Hide();
         }
 
-        private void HideStockConditionsButton()
+        private void OpenStockConditionDetails(NpcDetailsMerchantStockEntry entry, VanillaItemRelationButton anchor)
         {
-            _stockConditionsButton.IsActive = false;
-            _stockConditionsButton.Width.Set(0f, 0f);
-            _stockConditionsButton.Height.Set(0f, 0f);
-        }
-
-        private void ToggleStockConditionsPopover()
-        {
-            if (_projection?.MerchantStock.Count <= 0 || _stockConditionsPopover == null)
+            if (entry == null || entry.IsAlwaysAvailable || anchor == null || _stockPopoverHost == null)
                 return;
 
-            _stockConditionsPopover.Toggle();
-            _stockConditionsButton.IsActive = _stockConditionsPopover.IsOpen;
+            _stockConditionsItemId = entry.Item.ItemId;
+            _stockConditionsContent.Bind(entry);
+
+            if (_stockConditionsPopover == null)
+                _stockConditionsPopover = new VanillaPopover(_stockPopoverHost, anchor, _stockConditionsContent);
+            else
+                _stockConditionsPopover.SetAnchor(anchor);
+
+            _stockConditionsPopover.Open();
+            _stockConditionsPopover.Recalculate();
+        }
+
+        private void SynchronizeOpenStockConditionDetails()
+        {
+            if (_stockConditionsPopover?.IsOpen != true || _stockConditionsItemId <= 0 || _projection == null)
+                return;
+
+            for (var index = 0; index < _projection.MerchantStock.Count; index++)
+            {
+                NpcDetailsMerchantStockEntry entry = _projection.MerchantStock[index];
+
+                if (entry.Item.ItemId != _stockConditionsItemId || entry.IsAlwaysAvailable)
+                    continue;
+
+                _stockConditionsContent.Bind(entry);
+                _stockConditionsPopover.SetAnchor(_stockButtons[index]);
+                _stockConditionsPopover.Recalculate();
+                return;
+            }
+
+            TryCloseTransientSurface();
         }
 
         private void EnsureLootRowCapacity(int count)
         {
             while (_lootRowElements.Count < count)
             {
-                var row = new LootRowElement(NavigateToItem, _localization);
+                var row = new LootRowElement(NavigateToItem, _localization, _journeyResearchState);
                 _lootRowElements.Add(row);
                 Append(row);
             }
@@ -938,9 +1139,19 @@ namespace TerrarianCompendium.UI
                 _lootRowElements[index].Hide();
         }
 
+        private void HideBannerIcon()
+        {
+            _bannerIcon.ItemId = 0;
+            _bannerIcon.IsMissing = false;
+            _bannerIcon.IgnoresMouseInteraction = true;
+            _bannerIcon.Width.Set(0f, 0f);
+            _bannerIcon.Height.Set(0f, 0f);
+        }
+
         private void HideDynamicChildren()
         {
             _icon.Hide();
+            HideBannerIcon();
             _coinValueElement.Hide();
             _icon.Width.Set(0f, 0f);
             _icon.Height.Set(0f, 0f);
@@ -957,9 +1168,20 @@ namespace TerrarianCompendium.UI
             foreach (DebuffImmunityIcon icon in _immunityIcons)
                 icon.Hide();
 
+            HideUnusedStatElements(0);
             HideUnusedStockButtons(0);
-            HideStockConditionsButton();
             HideUnusedLootRows(0);
+        }
+
+        private void OnBannerItemClicked(UIMouseEvent evt, UIElement listeningElement)
+        {
+            if (evt.Target != _bannerIcon || _bannerIcon.ConsumeJourneyDuplicationClick())
+                return;
+
+            if (_projection?.BannerItem is not { IsNavigable: true } item)
+                return;
+
+            NavigateToItem(item.ItemId);
         }
 
         private void NavigateToItem(int itemId)
@@ -1056,11 +1278,14 @@ namespace TerrarianCompendium.UI
             private readonly Action<int> _navigateToItem;
             private NpcDetailsLootRow _row;
 
-            public LootRowElement(Action<int> navigateToItem, CompendiumLocalization localization)
+            public LootRowElement(
+                Action<int> navigateToItem,
+                CompendiumLocalization localization,
+                JourneyResearchState journeyResearchState)
             {
                 _navigateToItem = navigateToItem;
                 _localization = localization ?? throw new ArgumentNullException(nameof(localization));
-                _itemIcon = new VanillaItemIcon
+                _itemIcon = new VanillaItemIcon(journeyResearchState)
                 {
                     ShowTooltip = true
                 };
@@ -1121,7 +1346,10 @@ namespace TerrarianCompendium.UI
 
             private void OnItemClicked(UIMouseEvent evt, UIElement listeningElement)
             {
-                if (_row?.Item is not { IsNavigable: true } item || evt.Target != _itemIcon)
+                if (evt.Target != _itemIcon || _itemIcon.ConsumeJourneyDuplicationClick())
+                    return;
+
+                if (_row?.Item is not { IsNavigable: true } item)
                     return;
 
                 _navigateToItem?.Invoke(item.ItemId);

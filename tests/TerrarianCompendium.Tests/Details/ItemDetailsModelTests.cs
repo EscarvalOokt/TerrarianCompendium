@@ -164,12 +164,13 @@ namespace TerrarianCompendium.Tests.Details
         }
 
         [Test]
-        public void TryGetProjection_WithRecipeIndex_ProjectsProducingAndUsingRelations()
+        public void TryGetProjection_WithRecipeIndex_ProjectsRecipeRelationAvailability()
         {
             ItemCatalog catalog = CreateCatalog(
                 new ItemCatalogEntry(1, "Produced"),
                 new ItemCatalogEntry(2, "Ingredient"),
-                new ItemCatalogEntry(3, "Other Ingredient"));
+                new ItemCatalogEntry(3, "Other Ingredient"),
+                new ItemCatalogEntry(4, "Unrelated"));
             var state = new ChecklistState(catalog);
             RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, 2), CreateRecipeEntry(1, 1, 3));
             var recipeIndex = RecipeIndex.Create(recipeCatalog);
@@ -179,72 +180,45 @@ namespace TerrarianCompendium.Tests.Details
             Assert.That(produced.RecipeDataAvailable, Is.True);
             Assert.That(produced.HasRecipe, Is.True);
             Assert.That(produced.ProducingRecipeCount, Is.EqualTo(2));
-            Assert.That(produced.UsedInResults, Is.Empty);
+            Assert.That(produced.HasRecipeRelations, Is.True);
 
             Assert.That(model.TryGetProjection(2, out ItemDetailsProjection ingredient), Is.True);
             Assert.That(ingredient.RecipeDataAvailable, Is.True);
             Assert.That(ingredient.HasRecipe, Is.False);
             Assert.That(ingredient.ProducingRecipeCount, Is.Zero);
-            Assert.That(ingredient.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(ingredient.UsedInResults[0].ItemId, Is.EqualTo(1));
-            Assert.That(ingredient.UsedInResults[0].Name, Is.EqualTo("Produced"));
-            Assert.That(ingredient.UsedInResults[0].IsFound, Is.False);
+            Assert.That(ingredient.HasRecipeRelations, Is.True);
+
+            Assert.That(model.TryGetProjection(4, out ItemDetailsProjection unrelated), Is.True);
+            Assert.That(unrelated.RecipeDataAvailable, Is.True);
+            Assert.That(unrelated.HasRecipe, Is.False);
+            Assert.That(unrelated.ProducingRecipeCount, Is.Zero);
+            Assert.That(unrelated.HasRecipeRelations, Is.False);
         }
 
         [Test]
-        public void TryGetProjection_WhenUsedInResultCollectionRevisionChanges_RefreshesUsedInFoundState()
+        public void TryGetProjection_RecipeGroupConcreteMember_HasRecipeRelations()
         {
             ItemCatalog catalog = CreateCatalog(
                 new ItemCatalogEntry(1, "Result"),
-                new ItemCatalogEntry(2, "Ingredient"));
+                new ItemCatalogEntry(2, "Member"),
+                new ItemCatalogEntry(3, "Other Member"));
             var state = new ChecklistState(catalog);
-            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, 2));
+            var groupIngredient = new RecipeIngredient(2, 1, RecipeIngredientRequirement.ForRecipeGroup(25, [2, 3]));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                new RecipeCatalogEntry(
+                    0,
+                    1,
+                    1,
+                    [groupIngredient],
+                    new RecipeEnvironmentRequirements(null, false, false, false, false, false, false, false),
+                    isAlchemy: false));
             var recipeIndex = RecipeIndex.Create(recipeCatalog);
             var model = new ItemDetailsModel(catalog, state, new ItemTextIndex(catalog), recipeIndex: recipeIndex);
 
-            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection before), Is.True);
-            Assert.That(before.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(before.UsedInResults[0].IsFound, Is.False);
-
-            Assert.That(state.MarkFound(1), Is.True);
-            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection after), Is.True);
-            Assert.That(after, Is.Not.SameAs(before));
-            Assert.That(after.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(after.UsedInResults[0].IsFound, Is.True);
-        }
-
-        [Test]
-        public void TryGetProjection_WhenItemTextRevisionChanges_RefreshesItemAndUsedInNames()
-        {
-            ItemCatalog catalog = CreateCatalog(
-                new ItemCatalogEntry(1, "Result"),
-                new ItemCatalogEntry(2, "Ingredient"));
-            var state = new ChecklistState(catalog);
-            var itemTextIndex = new ItemTextIndex(catalog);
-            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, 2));
-            var recipeIndex = RecipeIndex.Create(recipeCatalog);
-            var model = new ItemDetailsModel(catalog, state, itemTextIndex, recipeIndex: recipeIndex);
-
-            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection before), Is.True);
-            Assert.That(before.Name, Is.EqualTo("Ingredient"));
-            Assert.That(before.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(before.UsedInResults[0].Name, Is.EqualTo("Result"));
-
-            ReplaceItemTextNames(
-                itemTextIndex,
-                catalog,
-                new Dictionary<int, string>
-                {
-                    [1] = "Localized Result",
-                    [2] = "Localized Ingredient"
-                },
-                "fr-FR");
-
-            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection after), Is.True);
-            Assert.That(after, Is.Not.SameAs(before));
-            Assert.That(after.Name, Is.EqualTo("Localized Ingredient"));
-            Assert.That(after.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(after.UsedInResults[0].Name, Is.EqualTo("Localized Result"));
+            Assert.That(model.TryGetProjection(3, out ItemDetailsProjection projection), Is.True);
+            Assert.That(projection.HasRecipe, Is.False);
+            Assert.That(projection.ProducingRecipeCount, Is.Zero);
+            Assert.That(projection.HasRecipeRelations, Is.True);
         }
 
         [Test]
@@ -256,9 +230,9 @@ namespace TerrarianCompendium.Tests.Details
 
             Assert.That(model.TryGetProjection(1, out ItemDetailsProjection projection), Is.True);
             Assert.That(projection.RecipeDataAvailable, Is.False);
+            Assert.That(projection.HasRecipeRelations, Is.False);
             Assert.That(projection.HasRecipe, Is.False);
             Assert.That(projection.ProducingRecipeCount, Is.Zero);
-            Assert.That(projection.UsedInResults, Is.Empty);
             Assert.That(projection.IsCraftableNow, Is.False);
         }
 
@@ -273,6 +247,7 @@ namespace TerrarianCompendium.Tests.Details
 
             Assert.That(model.TryGetProjection(1, out ItemDetailsProjection projection), Is.True);
             Assert.That(projection.RecipeDataAvailable, Is.True);
+            Assert.That(projection.HasRecipeRelations, Is.True);
             Assert.That(projection.HasRecipe, Is.True);
             Assert.That(projection.ProducingRecipeCount, Is.EqualTo(1));
             Assert.That(projection.IsCraftableNow, Is.False);
@@ -323,81 +298,6 @@ namespace TerrarianCompendium.Tests.Details
             Assert.That(craftingState.ReplaceSnapshot([]), Is.True);
             Assert.That(model.TryGetProjection(1, out ItemDetailsProjection unavailable), Is.True);
             Assert.That(unavailable.IsCraftableNow, Is.False);
-        }
-
-        [Test]
-        public void TryGetProjection_MultipleUsingRecipesForSameResult_DeduplicatesUsedInResult()
-        {
-            ItemCatalog catalog = CreateCatalog(
-                new ItemCatalogEntry(1, "Result"),
-                new ItemCatalogEntry(2, "Ingredient"));
-            var state = new ChecklistState(catalog);
-            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, 2), CreateRecipeEntry(1, 1, 2));
-            var recipeIndex = RecipeIndex.Create(recipeCatalog);
-            var model = new ItemDetailsModel(catalog, state, new ItemTextIndex(catalog), recipeIndex: recipeIndex);
-
-            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection projection), Is.True);
-            Assert.That(projection.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(projection.UsedInResults[0].ItemId, Is.EqualTo(1));
-        }
-
-        [Test]
-        public void TryGetProjection_DifferentUsingResults_PreserveRecipeOrder()
-        {
-            ItemCatalog catalog = CreateCatalog(
-                new ItemCatalogEntry(1, "First Result"),
-                new ItemCatalogEntry(2, "Ingredient"),
-                new ItemCatalogEntry(3, "Second Result"));
-            var state = new ChecklistState(catalog);
-            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 3, 2), CreateRecipeEntry(1, 1, 2));
-            var recipeIndex = RecipeIndex.Create(recipeCatalog);
-            var model = new ItemDetailsModel(catalog, state, new ItemTextIndex(catalog), recipeIndex: recipeIndex);
-
-            model.TryGetProjection(2, out ItemDetailsProjection projection);
-
-            Assert.That(projection.UsedInResults, Has.Count.EqualTo(2));
-            Assert.That(projection.UsedInResults[0].ItemId, Is.EqualTo(3));
-            Assert.That(projection.UsedInResults[1].ItemId, Is.EqualTo(1));
-        }
-
-        [Test]
-        public void TryGetProjection_RecipeGroupConcreteMember_ProjectsUsedInResult()
-        {
-            ItemCatalog catalog = CreateCatalog(
-                new ItemCatalogEntry(1, "Result"),
-                new ItemCatalogEntry(2, "Member"),
-                new ItemCatalogEntry(3, "Other Member"));
-            var state = new ChecklistState(catalog);
-            var groupIngredient = new RecipeIngredient(2, 1, RecipeIngredientRequirement.ForRecipeGroup(25, [2, 3]));
-            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
-                new RecipeCatalogEntry(
-                    0,
-                    1,
-                    1,
-                    [groupIngredient],
-                    new RecipeEnvironmentRequirements(null, false, false, false, false, false, false, false),
-                    isAlchemy: false));
-            var recipeIndex = RecipeIndex.Create(recipeCatalog);
-            var model = new ItemDetailsModel(catalog, state, new ItemTextIndex(catalog), recipeIndex: recipeIndex);
-
-            model.TryGetProjection(3, out ItemDetailsProjection projection);
-
-            Assert.That(projection.UsedInResults, Has.Count.EqualTo(1));
-            Assert.That(projection.UsedInResults[0].ItemId, Is.EqualTo(1));
-        }
-
-        [Test]
-        public void TryGetProjection_ResultOutsideCatalog_IsNotExposedAsUsedInNavigationReference()
-        {
-            ItemCatalog catalog = CreateCatalog(new ItemCatalogEntry(2, "Ingredient"));
-            var state = new ChecklistState(catalog);
-            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 99, 2));
-            var recipeIndex = RecipeIndex.Create(recipeCatalog);
-            var model = new ItemDetailsModel(catalog, state, new ItemTextIndex(catalog), recipeIndex: recipeIndex);
-
-            model.TryGetProjection(2, out ItemDetailsProjection projection);
-
-            Assert.That(projection.UsedInResults, Is.Empty);
         }
 
         [Test]

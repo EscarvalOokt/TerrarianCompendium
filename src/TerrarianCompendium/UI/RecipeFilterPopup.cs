@@ -710,7 +710,7 @@ namespace TerrarianCompendium.UI
                 return;
 
             if (asset.State == AssetState.NotLoaded)
-                Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+                DeferredTextureLoader.Request(asset);
 
             if (asset.State != AssetState.Loaded)
                 return;
@@ -770,7 +770,7 @@ namespace TerrarianCompendium.UI
 
         private static void RequestStaticAssetsAsync()
         {
-            _bestiaryTagAtlas ??= Main.Assets.Request<Texture2D>(BestiaryTagAtlasPath, AssetRequestMode.AsyncLoad);
+            _bestiaryTagAtlas = DeferredTextureLoader.Request(BestiaryTagAtlasPath, _bestiaryTagAtlas);
 
             if (TextureAssets.Extra == null || TextureAssets.Extra.Length <= TorchGodExtraIndex)
                 return;
@@ -778,7 +778,7 @@ namespace TerrarianCompendium.UI
             Asset<Texture2D> torchAsset = TextureAssets.Extra[TorchGodExtraIndex];
 
             if (torchAsset is { State: AssetState.NotLoaded })
-                Main.Assets.Request<Texture2D>(torchAsset.Name, AssetRequestMode.AsyncLoad);
+                DeferredTextureLoader.Request(torchAsset);
         }
 
         private sealed class EnvironmentFilterControl(

@@ -29,6 +29,7 @@ namespace TerrarianCompendium.UI
         private const int SidebarGap = 6;
         private readonly ItemCategoryNavigationView _categoryNavigation;
         private readonly ItemCategoryIconSelector _categorySelector;
+        private readonly ChecklistState _checklistState;
         private readonly VanillaTextButton _clearFiltersButton;
         private readonly VanillaTextButton _favoritesButton;
         private readonly VanillaTextButton _filterButton;
@@ -71,6 +72,7 @@ namespace TerrarianCompendium.UI
                 stationDisplayIndex ?? throw new ArgumentNullException(nameof(stationDisplayIndex));
             ChecklistState resolvedChecklistState =
                 checklistState ?? throw new ArgumentNullException(nameof(checklistState));
+            _checklistState = resolvedChecklistState;
             RecipeFavoriteState resolvedFavoriteState =
                 favoriteState ?? throw new ArgumentNullException(nameof(favoriteState));
             CraftingAvailabilityState resolvedCraftingAvailabilityState = craftingAvailabilityState ??
@@ -128,7 +130,9 @@ namespace TerrarianCompendium.UI
             _categoryNavigation = new ItemCategoryNavigationView(
                 _localization,
                 OnCategoryNavigationNodeSelected,
-                OnCategoryOtherSelected);
+                OnCategoryOtherSelected,
+                journeyResearchState,
+                NavigateToRecipesRoot);
             Append(_categoryNavigation);
 
             _itemScroll = new VanillaScrollRegion();
@@ -142,6 +146,7 @@ namespace TerrarianCompendium.UI
                 isSelected: itemId =>
                     BrowserSelectionNavigation.IsRecipeResultSelected(_navigationState.CurrentDestination, itemId),
                 cornerBadgeText: itemId => _model.HasFavoriteRecipe(itemId) ? "★" : string.Empty,
+                journeyResearchState: journeyResearchState,
                 emptyStateText: string.Empty);
             _itemScroll.Content.Append(_itemGrid);
 
@@ -316,6 +321,12 @@ namespace TerrarianCompendium.UI
             SetNavigationFilter(next);
         }
 
+        private void NavigateToRecipesRoot()
+        {
+            SetNavigationFilter(ChecklistNavigationFilter.AllItems);
+            _navigationState.Navigate(BrowserDestination.ForSection(BrowserSection.Recipes));
+        }
+
         private void SynchronizeCategoryPresentation()
         {
             _categorySelector.ActiveRoot = GetActiveRootNode();
@@ -329,8 +340,20 @@ namespace TerrarianCompendium.UI
             bool hasOther = navigation.IsNode &&
                             navigation.NodeId != ItemNavigationNodeId.AllItems &&
                             _model.HasOtherItems(navigation.NodeId);
+            BrowserDestination destination = _navigationState.CurrentDestination;
+            int? contextItemId = destination is { Section: BrowserSection.Recipes, HasRecipeQuery: true }
+                ? destination.RecipeQueryItemId
+                : null;
+            bool contextItemIsMissing = contextItemId.HasValue && !_checklistState.IsFound(contextItemId.Value);
 
-            _categoryNavigation.Synchronize(navigation.NodeId, navigation.IsOther, parentTarget, hasOther);
+            _categoryNavigation.Synchronize(
+                navigation.NodeId,
+                navigation.IsOther,
+                parentTarget,
+                hasOther,
+                contextItemId,
+                contextItemIsMissing,
+                _localization.Get(CompendiumTextKeys.Recipes.ShowAll));
         }
 
         private ItemNavigationNodeId? GetActiveRootNode()
@@ -426,12 +449,13 @@ namespace TerrarianCompendium.UI
 
             if (destination.Section != BrowserSection.Recipes ||
                 !destination.HasRecipeQuery ||
-                _model.IsItemAvailable(destination.RecipeQueryItemId))
+                _model.IsContextItemAvailable(destination.RecipeQueryItemId))
             {
                 return;
             }
 
             _navigationState.ReplaceCurrent(BrowserDestination.ForSection(BrowserSection.Recipes));
+            SynchronizeContext(_navigationState.CurrentDestination);
             _observedNavigationRevision = _navigationState.Revision;
         }
 
@@ -444,13 +468,33 @@ namespace TerrarianCompendium.UI
             BrowserDestination destination = _navigationState.CurrentDestination;
 
             if (destination.Section != BrowserSection.Recipes || !destination.HasRecipeQuery)
+            {
+                SynchronizeContext(destination);
                 return;
+            }
 
-            if (_model.IsItemAvailable(destination.RecipeQueryItemId))
+            if (_model.IsContextItemAvailable(destination.RecipeQueryItemId))
+            {
+                SynchronizeContext(destination);
                 return;
+            }
 
             _navigationState.ReplaceCurrent(BrowserDestination.ForSection(BrowserSection.Recipes));
+            SynchronizeContext(_navigationState.CurrentDestination);
             _observedNavigationRevision = _navigationState.Revision;
+        }
+
+        private void SynchronizeContext(BrowserDestination destination)
+        {
+            int? contextItemId = destination is { Section: BrowserSection.Recipes, HasRecipeQuery: true }
+                ? destination.RecipeQueryItemId
+                : null;
+
+            if (_model.ContextItemId == contextItemId)
+                return;
+
+            _model.ContextItemId = contextItemId;
+            _itemScroll.ResetScroll();
         }
 
         private void RestoreFromVirtualKeyboard()

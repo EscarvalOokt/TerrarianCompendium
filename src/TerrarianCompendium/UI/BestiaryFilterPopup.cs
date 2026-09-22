@@ -18,13 +18,16 @@ namespace TerrarianCompendium.UI
         private const int MaxGridColumns = 7;
 
         private readonly VanillaBestiaryFilterCatalog _catalog;
+        private readonly TextLabelElement _dropsLabel;
         private readonly VanillaIconButton _encounteredButton;
         private readonly TextLabelElement _encounterLabel;
         private readonly Action _filtersChanged;
         private readonly BestiaryFilterState _filterState;
         private readonly UIElement _grid;
-        private readonly bool _hasMerchantFilter;
+        private readonly VanillaTextButton _hasDropsButton;
+        private readonly VanillaTextButton _hasMissingDropsButton;
         private readonly VanillaTextButton _hasStockButton;
+        private readonly VanillaTextButton _hasUnresearchedDropsButton;
         private readonly CompendiumLocalization _localization;
         private readonly TextLabelElement _merchantLabel;
         private readonly NativeFilterButton[] _nativeButtons;
@@ -37,42 +40,61 @@ namespace TerrarianCompendium.UI
             BestiaryFilterState filterState,
             VanillaBestiaryFilterCatalog catalog,
             bool merchantFilterAvailable,
+            bool lootAwareFiltersAvailable,
+            bool unresearchedDropsFilterAvailable,
             CompendiumLocalization localization,
             Action filtersChanged)
         {
             _filterState = filterState ?? throw new ArgumentNullException(nameof(filterState));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-            _hasMerchantFilter = merchantFilterAvailable;
             _filtersChanged = filtersChanged;
             SetPadding(0f);
 
+            _scroll = new VanillaScrollRegion();
+            Append(_scroll);
+
             _encounterLabel = new TextLabelElement(string.Empty);
-            Append(_encounterLabel);
+            _scroll.Content.Append(_encounterLabel);
 
             _unknownButton = CreateEncounterButton(found: false, BestiaryEncounterFilter.Unknown);
             _encounteredButton = CreateEncounterButton(found: true, BestiaryEncounterFilter.Encountered);
-            Append(_unknownButton);
-            Append(_encounteredButton);
+            _scroll.Content.Append(_unknownButton);
+            _scroll.Content.Append(_encounteredButton);
 
-            if (_hasMerchantFilter)
+            if (merchantFilterAvailable)
             {
                 _merchantLabel = new TextLabelElement(string.Empty);
-                Append(_merchantLabel);
+                _scroll.Content.Append(_merchantLabel);
 
                 _hasStockButton = new VanillaTextButton(string.Empty, ToggleHasStockOnly)
                 {
                     ActiveBorderColor = UIColors.Success,
                     ActiveBorderThickness = 2,
                 };
-                Append(_hasStockButton);
+                _scroll.Content.Append(_hasStockButton);
+            }
+
+            if (lootAwareFiltersAvailable)
+            {
+                _dropsLabel = new TextLabelElement(string.Empty);
+                _scroll.Content.Append(_dropsLabel);
+
+                _hasDropsButton = CreateDropCriterionButton(BestiaryFilterCriterion.HasDrops);
+                _hasMissingDropsButton = CreateDropCriterionButton(BestiaryFilterCriterion.HasMissingDrops);
+                _scroll.Content.Append(_hasDropsButton);
+                _scroll.Content.Append(_hasMissingDropsButton);
+
+                if (unresearchedDropsFilterAvailable)
+                {
+                    _hasUnresearchedDropsButton =
+                        CreateDropCriterionButton(BestiaryFilterCriterion.HasUnresearchedDrops);
+                    _scroll.Content.Append(_hasUnresearchedDropsButton);
+                }
             }
 
             _nativeLabel = new TextLabelElement(string.Empty);
-            Append(_nativeLabel);
-
-            _scroll = new VanillaScrollRegion();
-            Append(_scroll);
+            _scroll.Content.Append(_nativeLabel);
 
             _grid = new UIElement
             {
@@ -102,36 +124,11 @@ namespace TerrarianCompendium.UI
 
         public VanillaPopoverContentSize MeasurePopoverContent(int availableWidth)
         {
-            int encounterWidth = Math.Max(
-                TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.Encounter)),
-                IconSize * 2 + Gap);
-            int nativeGridWidth = CalculateGridWidth(Math.Min(MaxGridColumns, _nativeButtons.Length));
-            int nativeWidth = Math.Max(
-                TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.NativeFilters)),
-                nativeGridWidth);
-            int naturalWidth = Math.Max(encounterWidth, VanillaScrollRegion.CalculateRequiredWidth(nativeWidth));
-
-            if (_hasMerchantFilter)
-            {
-                naturalWidth = Math.Max(
-                    naturalWidth,
-                    TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.MerchantFilter)));
-                naturalWidth = Math.Max(
-                    naturalWidth,
-                    VanillaTextButton.MeasureNaturalWidth(_localization.Get(CompendiumTextKeys.Bestiary.HasStock)));
-            }
-
+            int naturalContentWidth = CalculateNaturalContentWidth();
+            int naturalWidth = VanillaScrollRegion.CalculateRequiredWidth(naturalContentWidth);
             int width = Math.Min(Math.Max(0, availableWidth), naturalWidth);
             int contentWidth = VanillaScrollRegion.CalculateContentWidth(width);
-            int nativeHeight = CalculateGridHeight(_nativeButtons.Length, contentWidth);
-            int height = LabelHeight + FilterPopupLayout.ContentGap + IconSize;
-
-            if (_hasMerchantFilter)
-            {
-                height += FilterPopupLayout.SectionGap + LabelHeight + FilterPopupLayout.ContentGap + ControlHeight;
-            }
-
-            height += FilterPopupLayout.SectionGap + LabelHeight + FilterPopupLayout.ContentGap + nativeHeight;
+            int height = CalculateContentHeight(contentWidth);
             return new VanillaPopoverContentSize(width, height);
         }
 
@@ -143,6 +140,19 @@ namespace TerrarianCompendium.UI
 
             if (_hasStockButton != null)
                 _hasStockButton.IsActive = _filterState.HasStockOnly;
+
+            if (_hasDropsButton != null)
+                _hasDropsButton.IsActive = _filterState.DropCriterion == BestiaryFilterCriterion.HasDrops;
+            if (_hasMissingDropsButton != null)
+            {
+                _hasMissingDropsButton.IsActive = _filterState.DropCriterion == BestiaryFilterCriterion.HasMissingDrops;
+            }
+
+            if (_hasUnresearchedDropsButton != null)
+            {
+                _hasUnresearchedDropsButton.IsActive =
+                    _filterState.DropCriterion == BestiaryFilterCriterion.HasUnresearchedDrops;
+            }
 
             for (var index = 0; index < _nativeButtons.Length; index++)
                 _nativeButtons[index].IsActive = _filterState.IsNativeFilterActive(_catalog.Options[index].Id);
@@ -157,12 +167,32 @@ namespace TerrarianCompendium.UI
             _encounterLabel.Text = _localization.Get(CompendiumTextKeys.Bestiary.Encounter);
             _unknownButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.Unknown);
             _encounteredButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.Encountered);
+
             if (_merchantLabel != null)
                 _merchantLabel.Text = _localization.Get(CompendiumTextKeys.Bestiary.MerchantFilter);
             if (_hasStockButton != null)
             {
                 _hasStockButton.Text = _localization.Get(CompendiumTextKeys.Bestiary.HasStock);
                 _hasStockButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.HasStockTooltip);
+            }
+
+            if (_dropsLabel != null)
+                _dropsLabel.Text = _localization.Get(CompendiumTextKeys.Bestiary.Drops);
+
+            if (_hasDropsButton != null)
+            {
+                _hasDropsButton.Text = _localization.Get(CompendiumTextKeys.Bestiary.HasDrops);
+                _hasDropsButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.HasDropsTooltip);
+                _hasMissingDropsButton.Text = _localization.Get(CompendiumTextKeys.Bestiary.HasMissingDrops);
+                _hasMissingDropsButton.TooltipText =
+                    _localization.Get(CompendiumTextKeys.Bestiary.HasMissingDropsTooltip);
+            }
+
+            if (_hasUnresearchedDropsButton != null)
+            {
+                _hasUnresearchedDropsButton.Text = _localization.Get(CompendiumTextKeys.Bestiary.HasUnresearchedDrops);
+                _hasUnresearchedDropsButton.TooltipText =
+                    _localization.Get(CompendiumTextKeys.Bestiary.HasUnresearchedDropsTooltip);
             }
 
             _nativeLabel.Text = _localization.Get(CompendiumTextKeys.Bestiary.NativeFilters);
@@ -180,9 +210,14 @@ namespace TerrarianCompendium.UI
 
         public override void RecalculateChildren()
         {
-            CalculatedStyle dimensions = GetInnerDimensions();
-            int width = Math.Max(0, (int)dimensions.Width);
-            int height = Math.Max(0, (int)dimensions.Height);
+            _scroll.Left.Set(0f, 0f);
+            _scroll.Top.Set(0f, 0f);
+            _scroll.Width.Set(0f, 1f);
+            _scroll.Height.Set(0f, 1f);
+
+            base.RecalculateChildren();
+
+            int width = _scroll.ContentWidth;
             var top = 0;
 
             LayoutElement(_encounterLabel, 0, top, width, LabelHeight);
@@ -203,15 +238,33 @@ namespace TerrarianCompendium.UI
                 top += ControlHeight;
             }
 
+            if (_dropsLabel != null)
+            {
+                top += FilterPopupLayout.SectionGap;
+                LayoutElement(_dropsLabel, 0, top, width, LabelHeight);
+                top += LabelHeight + FilterPopupLayout.ContentGap;
+
+                LayoutElement(_hasDropsButton, 0, top, width, ControlHeight);
+                top += ControlHeight + Gap;
+
+                LayoutElement(_hasMissingDropsButton, 0, top, width, ControlHeight);
+                top += ControlHeight;
+
+                if (_hasUnresearchedDropsButton != null)
+                {
+                    top += Gap;
+                    LayoutElement(_hasUnresearchedDropsButton, 0, top, width, ControlHeight);
+                    top += ControlHeight;
+                }
+            }
+
             top += FilterPopupLayout.SectionGap;
             LayoutElement(_nativeLabel, 0, top, width, LabelHeight);
             top += LabelHeight + FilterPopupLayout.ContentGap;
 
-            LayoutElement(_scroll, 0, top, width, Math.Max(0, height - top));
-
-            int contentWidth = _scroll.ContentWidth;
-            int columns = CalculateGridColumnCount(contentWidth);
-            int contentHeight = CalculateGridHeight(_nativeButtons.Length, contentWidth);
+            int columns = CalculateGridColumnCount(width);
+            int gridHeight = CalculateGridHeight(_nativeButtons.Length, width);
+            LayoutElement(_grid, 0, top, width, gridHeight);
 
             for (var index = 0; index < _nativeButtons.Length; index++)
             {
@@ -225,9 +278,74 @@ namespace TerrarianCompendium.UI
                     IconSize);
             }
 
-            _grid.Height.Set(contentHeight, 0f);
-            _scroll.SetContentHeight(contentHeight);
-            base.RecalculateChildren();
+            top += gridHeight;
+            _grid.Height.Set(gridHeight, 0f);
+            _scroll.SetContentHeight(top);
+        }
+
+        private int CalculateNaturalContentWidth()
+        {
+            int width = Math.Max(
+                TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.Encounter)),
+                IconSize * 2 + Gap);
+
+            if (_merchantLabel != null)
+            {
+                width = Math.Max(
+                    width,
+                    TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.MerchantFilter)));
+                width = Math.Max(
+                    width,
+                    VanillaTextButton.MeasureNaturalWidth(_localization.Get(CompendiumTextKeys.Bestiary.HasStock)));
+            }
+
+            if (_dropsLabel != null)
+            {
+                width = Math.Max(width, TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.Drops)));
+                width = Math.Max(
+                    width,
+                    VanillaTextButton.MeasureNaturalWidth(_localization.Get(CompendiumTextKeys.Bestiary.HasDrops)));
+                width = Math.Max(
+                    width,
+                    VanillaTextButton.MeasureNaturalWidth(
+                        _localization.Get(CompendiumTextKeys.Bestiary.HasMissingDrops)));
+
+                if (_hasUnresearchedDropsButton != null)
+                {
+                    width = Math.Max(
+                        width,
+                        VanillaTextButton.MeasureNaturalWidth(
+                            _localization.Get(CompendiumTextKeys.Bestiary.HasUnresearchedDrops)));
+                }
+            }
+
+            int nativeWidth = Math.Max(
+                TextUtil.MeasureWidth(_localization.Get(CompendiumTextKeys.Bestiary.NativeFilters)),
+                CalculateGridWidth(Math.Min(MaxGridColumns, _nativeButtons.Length)));
+            return Math.Max(width, nativeWidth);
+        }
+
+        private int CalculateContentHeight(int width)
+        {
+            int top = LabelHeight + FilterPopupLayout.ContentGap + IconSize;
+
+            if (_merchantLabel != null)
+            {
+                top += FilterPopupLayout.SectionGap + LabelHeight + FilterPopupLayout.ContentGap + ControlHeight;
+            }
+
+            if (_dropsLabel != null)
+            {
+                int criterionCount = _hasUnresearchedDropsButton == null ? 2 : 3;
+                top += FilterPopupLayout.SectionGap +
+                       LabelHeight +
+                       FilterPopupLayout.ContentGap +
+                       criterionCount * ControlHeight +
+                       Math.Max(0, criterionCount - 1) * Gap;
+            }
+
+            top += FilterPopupLayout.SectionGap + LabelHeight + FilterPopupLayout.ContentGap;
+            return top + CalculateGridHeight(_nativeButtons.Length, width);
         }
 
         private static int CalculateGridColumnCount(int width)
@@ -252,6 +370,15 @@ namespace TerrarianCompendium.UI
                 return 0;
 
             return columns * IconSize + (columns - 1) * Gap;
+        }
+
+        private VanillaTextButton CreateDropCriterionButton(BestiaryFilterCriterion criterion)
+        {
+            return new VanillaTextButton(string.Empty, () => ToggleDropCriterion(criterion))
+            {
+                ActiveBorderColor = UIColors.Success,
+                ActiveBorderThickness = 2,
+            };
         }
 
         private VanillaIconButton CreateEncounterButton(bool found, BestiaryEncounterFilter filter)
@@ -279,9 +406,20 @@ namespace TerrarianCompendium.UI
             NotifyFiltersChanged();
         }
 
+        private void ToggleDropCriterion(BestiaryFilterCriterion criterion)
+        {
+            _filterState.DropCriterion = _filterState.DropCriterion == criterion
+                ? BestiaryFilterCriterion.All
+                : criterion;
+            NotifyFiltersChanged();
+        }
+
         private void ToggleNativeFilter(int filterId)
         {
-            _filterState.ToggleNativeFilter(filterId);
+            var criterion = BestiaryFilterCriterion.ForNative(filterId);
+            _filterState.BestiaryCriterion = _filterState.BestiaryCriterion == criterion
+                ? BestiaryFilterCriterion.All
+                : criterion;
             NotifyFiltersChanged();
         }
 
@@ -302,6 +440,7 @@ namespace TerrarianCompendium.UI
         private sealed class NativeFilterButton : UIElement
         {
             private readonly Action _clicked;
+            private readonly SelectionOverlayElement _overlay;
             private readonly Func<string> _tooltipProvider;
 
             public NativeFilterButton(UIElement image, Action clicked, Func<string> tooltipProvider)
@@ -315,9 +454,28 @@ namespace TerrarianCompendium.UI
                     image.IgnoresMouseInteraction = true;
                     Append(image);
                 }
+
+                _overlay = new SelectionOverlayElement(this)
+                {
+                    IgnoresMouseInteraction = true
+                };
+                Append(_overlay);
             }
 
             public bool IsActive { get; set; }
+
+            public override void RecalculateChildren()
+            {
+                CalculatedStyle dimensions = GetInnerDimensions();
+                int width = Math.Max(0, (int)dimensions.Width);
+                int height = Math.Max(0, (int)dimensions.Height);
+
+                _overlay.Left.Set(0f, 0f);
+                _overlay.Top.Set(0f, 0f);
+                _overlay.Width.Set(width, 0f);
+                _overlay.Height.Set(height, 0f);
+                base.RecalculateChildren();
+            }
 
             protected override void DrawSelf(SpriteBatch spriteBatch)
             {
@@ -336,7 +494,14 @@ namespace TerrarianCompendium.UI
                     width,
                     height,
                     IsActive ? UIColors.ItemActiveBg : IsMouseHovering ? UIColors.ButtonHover : UIColors.Button);
-                UIRenderer.DrawRectOutline(x, y, width, height, IsActive ? UIColors.Accent : UIColors.Border);
+                if (IsActive)
+                {
+                    UIRenderer.DrawRectOutline(x, y, width, height, UIColors.Success, 2);
+                }
+                else
+                {
+                    UIRenderer.DrawRectOutline(x, y, width, height, UIColors.Border);
+                }
 
                 if (!IsMouseHovering)
                     return;
@@ -351,6 +516,28 @@ namespace TerrarianCompendium.UI
             {
                 if (evt.Target == this)
                     _clicked?.Invoke();
+            }
+
+            private sealed class SelectionOverlayElement(NativeFilterButton owner) : UIElement
+            {
+                private readonly NativeFilterButton _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+
+                protected override void DrawSelf(SpriteBatch spriteBatch)
+                {
+                    if (!_owner.IsActive)
+                        return;
+
+                    CalculatedStyle dimensions = GetDimensions();
+                    var x = (int)dimensions.X;
+                    var y = (int)dimensions.Y;
+                    int width = Math.Max(0, (int)dimensions.Width);
+                    int height = Math.Max(0, (int)dimensions.Height);
+
+                    if (width <= 0 || height <= 0)
+                        return;
+
+                    UIRenderer.DrawRectOutline(x, y, width, height, UIColors.Success, 2);
+                }
             }
         }
     }

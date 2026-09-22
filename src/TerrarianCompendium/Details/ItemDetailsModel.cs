@@ -163,7 +163,7 @@ namespace TerrarianCompendium.Details
             IReadOnlyList<ItemDetailsArmorSetReference> armorSets = BuildArmorSetReferences(itemId);
             bool recipeDataAvailable = _recipeIndex != null;
             var producingRecipeCount = 0;
-            IReadOnlyList<ItemDetailsRecipeResultReference> usedInResults = [];
+            var hasRecipeRelations = false;
             var hasRecipe = false;
             int? craftingStationRequiredTileId = null;
 
@@ -171,8 +171,8 @@ namespace TerrarianCompendium.Details
             {
                 IReadOnlyList<RecipeCatalogEntry> producingRecipes = _recipeIndex.GetRecipesProducing(itemId);
                 producingRecipeCount = producingRecipes.Count;
-                usedInResults = BuildUsedInResults(itemId);
                 hasRecipe = producingRecipeCount > 0;
+                hasRecipeRelations = hasRecipe || _recipeIndex.GetRecipesUsing(itemId).Count > 0;
             }
 
             if (_recipeStationDisplayIndex != null &&
@@ -206,7 +206,7 @@ namespace TerrarianCompendium.Details
                 armorSets,
                 recipeDataAvailable,
                 producingRecipeCount,
-                usedInResults,
+                hasRecipeRelations,
                 hasRecipe,
                 isCraftableNow,
                 craftingStationRequiredTileId,
@@ -256,34 +256,6 @@ namespace TerrarianCompendium.Details
             }
 
             return references;
-        }
-
-        private IReadOnlyList<ItemDetailsRecipeResultReference> BuildUsedInResults(int itemId)
-        {
-            IReadOnlyList<RecipeCatalogEntry> recipes = _recipeIndex.GetRecipesUsing(itemId);
-
-            if (recipes.Count == 0)
-                return [];
-
-            var seenItemIds = new HashSet<int>();
-            var results = new List<ItemDetailsRecipeResultReference>();
-
-            foreach (RecipeCatalogEntry recipe in recipes)
-            {
-                if (!seenItemIds.Add(recipe.ResultItemId) ||
-                    !_catalog.TryGet(recipe.ResultItemId, out ItemCatalogEntry resultItem))
-                {
-                    continue;
-                }
-
-                results.Add(
-                    new ItemDetailsRecipeResultReference(
-                        resultItem.Id,
-                        _itemTextIndex.GetName(resultItem.Id),
-                        _checklistState.IsFound(resultItem.Id)));
-            }
-
-            return results;
         }
 
         private IReadOnlyList<ItemDetailsNpcSourceReference> BuildDroppedByNpcSources(int itemId)

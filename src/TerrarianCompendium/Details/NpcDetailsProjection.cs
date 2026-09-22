@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using TerrarianCompendium.Acquisition;
 using TerrarianCompendium.Bestiary;
 
 namespace TerrarianCompendium.Details
@@ -96,39 +97,50 @@ namespace TerrarianCompendium.Details
     }
 
 
+    internal sealed class NpcDetailsMerchantCondition(MerchantSourceCondition condition, string description)
+    {
+        public MerchantSourceCondition Condition { get; } = condition;
+
+        public string Description { get; } = description ?? throw new ArgumentNullException(nameof(description));
+    }
+
     internal sealed class NpcDetailsMerchantVariant(
-        IEnumerable<string> conditionDescriptions,
+        IEnumerable<NpcDetailsMerchantCondition> conditions,
         bool randomStock,
         bool shopCapacityLimited)
     {
-        private static readonly IReadOnlyList<string> _emptyDescriptions = Array.Empty<string>();
+        private static readonly IReadOnlyList<NpcDetailsMerchantCondition> _emptyConditions =
+            Array.Empty<NpcDetailsMerchantCondition>();
 
-        public IReadOnlyList<string> ConditionDescriptions { get; } = CopyDescriptions(conditionDescriptions);
+        public IReadOnlyList<NpcDetailsMerchantCondition> Conditions { get; } = CopyConditions(conditions);
 
         public bool RandomStock { get; } = randomStock;
 
         public bool ShopCapacityLimited { get; } = shopCapacityLimited;
 
-        private static IReadOnlyList<string> CopyDescriptions(IEnumerable<string> descriptions)
+        private static IReadOnlyList<NpcDetailsMerchantCondition> CopyConditions(
+            IEnumerable<NpcDetailsMerchantCondition> conditions)
         {
-            if (descriptions == null)
-                return _emptyDescriptions;
+            if (conditions == null)
+                return _emptyConditions;
 
-            var snapshot = new List<string>();
+            var snapshot = new List<NpcDetailsMerchantCondition>();
 
-            foreach (string description in descriptions)
+            foreach (NpcDetailsMerchantCondition condition in conditions)
             {
-                if (description == null)
+                if (condition == null)
                 {
                     throw new ArgumentException(
-                        "Merchant condition descriptions must not contain null values.",
-                        nameof(descriptions));
+                        "Merchant conditions must not contain null values.",
+                        nameof(conditions));
                 }
 
-                snapshot.Add(description);
+                snapshot.Add(condition);
             }
 
-            return snapshot.Count == 0 ? _emptyDescriptions : new ReadOnlyCollection<string>(snapshot);
+            return snapshot.Count == 0
+                ? _emptyConditions
+                : new ReadOnlyCollection<NpcDetailsMerchantCondition>(snapshot);
         }
     }
 
@@ -172,13 +184,40 @@ namespace TerrarianCompendium.Details
             NpcBestiaryMetadataSnapshot metadata,
             IEnumerable<NpcDetailsLootRow> lootRows,
             bool merchantSourceDataAvailable = false,
-            IEnumerable<NpcDetailsMerchantStockEntry> merchantStock = null)
+            IEnumerable<NpcDetailsMerchantStockEntry> merchantStock = null,
+            NpcBestiaryKillStatisticsSnapshot killStatistics = null,
+            NpcDetailsItemReference bannerItem = null,
+            int bannerProgress = 0)
         {
             if (metadata == null)
                 throw new ArgumentNullException(nameof(metadata));
 
             if (lootRows == null)
                 throw new ArgumentNullException(nameof(lootRows));
+
+            if (bannerProgress < 0)
+                throw new ArgumentOutOfRangeException(nameof(bannerProgress));
+
+            if (killStatistics is { BannerItemId: not null })
+            {
+                int bannerItemId = killStatistics.BannerItemId.GetValueOrDefault();
+
+                if (bannerItem == null || bannerItem.ItemId != bannerItemId)
+                {
+                    throw new ArgumentException(
+                        "Banner item must match the native kill-statistics snapshot.",
+                        nameof(bannerItem));
+                }
+
+                if (bannerProgress >= killStatistics.KillsPerBanner)
+                    throw new ArgumentOutOfRangeException(nameof(bannerProgress));
+            }
+            else if (bannerItem != null || bannerProgress != 0)
+            {
+                throw new ArgumentException(
+                    "Banner presentation must be empty when the native snapshot has no banner.",
+                    nameof(bannerItem));
+            }
 
             var copiedLootRows = new List<NpcDetailsLootRow>();
             var copiedMerchantStock = new List<NpcDetailsMerchantStockEntry>();
@@ -215,6 +254,11 @@ namespace TerrarianCompendium.Details
             RareSpawnRarityLevel = metadata.RareSpawnRarityLevel;
             SpawnConditions = metadata.SpawnConditions;
             BaseDebuffImmunities = metadata.BaseDebuffImmunities;
+            HasKillCounter = killStatistics?.HasKillCounter == true;
+            SlainCount = killStatistics?.SlainCount ?? 0;
+            BannerItem = bannerItem;
+            BannerProgress = bannerItem != null ? bannerProgress : 0;
+            BannerProgressTarget = killStatistics?.KillsPerBanner ?? 0;
             LootRows = new ReadOnlyCollection<NpcDetailsLootRow>(copiedLootRows);
             MerchantSourceDataAvailable = merchantSourceDataAvailable;
             MerchantStock = new ReadOnlyCollection<NpcDetailsMerchantStockEntry>(copiedMerchantStock);
@@ -237,6 +281,18 @@ namespace TerrarianCompendium.Details
         public IReadOnlyList<NpcBestiarySpawnCondition> SpawnConditions { get; }
 
         public IReadOnlyList<NpcBestiaryDebuffImmunity> BaseDebuffImmunities { get; }
+
+        public bool HasKillCounter { get; }
+
+        public int SlainCount { get; }
+
+        public NpcDetailsItemReference BannerItem { get; }
+
+        public int BannerProgress { get; }
+
+        public int BannerProgressTarget { get; }
+
+        public bool HasKillStatistics => HasKillCounter || BannerItem != null;
 
         public IReadOnlyList<NpcDetailsLootRow> LootRows { get; }
 

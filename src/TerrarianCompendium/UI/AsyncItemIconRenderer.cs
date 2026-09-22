@@ -15,7 +15,8 @@ namespace TerrarianCompendium.UI
             if (itemId <= 0 || width <= 0 || height <= 0)
                 return;
 
-            Asset<Texture2D> asset = TextureAssets.Item[itemId];
+            if (!TryGetAsset(itemId, out Asset<Texture2D> asset))
+                return;
 
             RequestAsync(asset);
 
@@ -23,6 +24,10 @@ namespace TerrarianCompendium.UI
                 return;
 
             Texture2D texture = asset.Value;
+
+            if (texture == null || texture.Width <= 0 || texture.Height <= 0)
+                return;
+
             Rectangle frame = GetFrame(itemId, texture);
             float scale = CalculateScale(frame.Width, frame.Height, width, height);
 
@@ -38,10 +43,10 @@ namespace TerrarianCompendium.UI
 
         public static void RequestAsync(int itemId)
         {
-            if (itemId <= 0)
+            if (!TryGetAsset(itemId, out Asset<Texture2D> asset))
                 return;
 
-            RequestAsync(TextureAssets.Item[itemId]);
+            RequestAsync(asset);
         }
 
         internal static float CalculateScale(int frameWidth, int frameHeight, int width, int height)
@@ -68,12 +73,21 @@ namespace TerrarianCompendium.UI
             return animation?.GetFrame(texture) ?? frame;
         }
 
+        private static bool TryGetAsset(int itemId, out Asset<Texture2D> asset)
+        {
+            asset = null;
+            Asset<Texture2D>[] textures = TextureAssets.Item;
+
+            if (textures == null || itemId <= 0 || itemId >= textures.Length)
+                return false;
+
+            asset = textures[itemId];
+            return asset != null;
+        }
+
         private static void RequestAsync(Asset<Texture2D> asset)
         {
-            if (asset.State != AssetState.NotLoaded)
-                return;
-
-            Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+            DeferredTextureLoader.Request(asset);
         }
     }
 }

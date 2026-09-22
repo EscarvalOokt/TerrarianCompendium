@@ -12,12 +12,14 @@ namespace TerrarianCompendium.UI.Vanilla
     internal static class VanillaPresentationIcons
     {
         private const string JourneyToggleTexturePath = "Images/UI/Creative/Journey_Toggle";
+        private const string CraftTexturePath = "Images/UI/Craft";
         private const string ClassicDifficultyTexturePath = "Images/UI/WorldCreation/IconDifficultyNormal";
         private const string ExpertDifficultyTexturePath = "Images/UI/WorldCreation/IconDifficultyExpert";
         private const string MasterDifficultyTexturePath = "Images/UI/WorldCreation/IconDifficultyMaster";
         private const string BestiaryTagAtlasPath = "Images/UI/Bestiary/Icon_Tags_Shadow";
         private const string BestiaryRankLightTexturePath = "Images/UI/Bestiary/Icon_Rank_Light";
         private const string RemixWorldTexturePath = "Images/UI/IconHallowCorruptionRemix";
+        private const string NotTheBeesWorldTexturePath = "Images/UI/WorldCreation/Seed_NotTheBees";
         private const int AnglerHeadIndex = 22;
         private const int WallOfFleshHeadIndex = 22;
         private const int BestiaryTagColumns = 16;
@@ -30,17 +32,45 @@ namespace TerrarianCompendium.UI.Vanilla
         private static Asset<Texture2D> _bestiaryRankLightTexture;
         private static Asset<Texture2D> _bestiaryTagAtlas;
         private static Asset<Texture2D> _classicDifficultyTexture;
+        private static Asset<Texture2D> _craftTexture;
         private static Asset<Texture2D> _expertDifficultyTexture;
         private static Asset<Texture2D> _journeyToggleTexture;
         private static Asset<Texture2D> _masterDifficultyTexture;
+        private static Asset<Texture2D> _notTheBeesWorldTexture;
         private static Asset<Texture2D> _remixWorldTexture;
+
+        public static void DrawBestiaryTag(Rectangle bounds, int linearFrame)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0 || linearFrame < 0)
+                return;
+
+            _bestiaryTagAtlas = DeferredTextureLoader.Request(BestiaryTagAtlasPath, _bestiaryTagAtlas);
+
+            if (_bestiaryTagAtlas.State != AssetState.Loaded)
+                return;
+
+            int frameX = linearFrame % BestiaryTagColumns;
+            int frameY = linearFrame / BestiaryTagColumns;
+
+            if (frameY >= BestiaryTagRows)
+                return;
+
+            DrawAtlasFrame(
+                _bestiaryTagAtlas.Value,
+                BestiaryTagColumns,
+                BestiaryTagRows,
+                frameX,
+                frameY,
+                bounds,
+                Color.White);
+        }
 
         public static void DrawCompletion(Rectangle bounds, bool found)
         {
             if (bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
-            _bestiaryTagAtlas ??= Main.Assets.Request<Texture2D>(BestiaryTagAtlasPath, AssetRequestMode.AsyncLoad);
+            _bestiaryTagAtlas = DeferredTextureLoader.Request(BestiaryTagAtlasPath, _bestiaryTagAtlas);
 
             if (_bestiaryTagAtlas.State != AssetState.Loaded)
                 return;
@@ -67,21 +97,21 @@ namespace TerrarianCompendium.UI.Vanilla
             switch (difficulty)
             {
                 case NpcDifficultyMode.Classic:
-                    _classicDifficultyTexture ??= Main.Assets.Request<Texture2D>(
+                    _classicDifficultyTexture = DeferredTextureLoader.Request(
                         ClassicDifficultyTexturePath,
-                        AssetRequestMode.AsyncLoad);
+                        _classicDifficultyTexture);
                     asset = _classicDifficultyTexture;
                     break;
                 case NpcDifficultyMode.Expert:
-                    _expertDifficultyTexture ??= Main.Assets.Request<Texture2D>(
+                    _expertDifficultyTexture = DeferredTextureLoader.Request(
                         ExpertDifficultyTexturePath,
-                        AssetRequestMode.AsyncLoad);
+                        _expertDifficultyTexture);
                     asset = _expertDifficultyTexture;
                     break;
                 case NpcDifficultyMode.Master:
-                    _masterDifficultyTexture ??= Main.Assets.Request<Texture2D>(
+                    _masterDifficultyTexture = DeferredTextureLoader.Request(
                         MasterDifficultyTexturePath,
-                        AssetRequestMode.AsyncLoad);
+                        _masterDifficultyTexture);
                     asset = _masterDifficultyTexture;
                     break;
                 default:
@@ -102,14 +132,25 @@ namespace TerrarianCompendium.UI.Vanilla
             if (bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
-            _journeyToggleTexture ??= Main.Assets.Request<Texture2D>(
-                JourneyToggleTexturePath,
-                AssetRequestMode.AsyncLoad);
+            _journeyToggleTexture = DeferredTextureLoader.Request(JourneyToggleTexturePath, _journeyToggleTexture);
 
             if (_journeyToggleTexture.State != AssetState.Loaded)
                 return;
 
             DrawTexture(_journeyToggleTexture.Value, bounds, researched ? Color.White : Color.Black);
+        }
+
+        public static void DrawCraft(Rectangle bounds, bool enabled)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            _craftTexture = DeferredTextureLoader.Request(CraftTexturePath, _craftTexture);
+
+            if (_craftTexture.State != AssetState.Loaded)
+                return;
+
+            DrawTexture(_craftTexture.Value, bounds, enabled ? Color.White : Color.Black);
         }
 
         public static void DrawCraftToggle(Rectangle bounds, int normalIndex, int hoverIndex, bool hovered)
@@ -128,7 +169,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 return;
 
             if (asset.State == AssetState.NotLoaded)
-                asset = Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+                DeferredTextureLoader.Request(asset);
 
             if (asset.State != AssetState.Loaded)
                 return;
@@ -152,7 +193,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 return;
 
             if (asset.State == AssetState.NotLoaded)
-                asset = Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+                DeferredTextureLoader.Request(asset);
 
             if (asset.State != AssetState.Loaded)
                 return;
@@ -165,9 +206,9 @@ namespace TerrarianCompendium.UI.Vanilla
             if (bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
-            _bestiaryRankLightTexture ??= Main.Assets.Request<Texture2D>(
+            _bestiaryRankLightTexture = DeferredTextureLoader.Request(
                 BestiaryRankLightTexturePath,
-                AssetRequestMode.AsyncLoad);
+                _bestiaryRankLightTexture);
 
             if (_bestiaryRankLightTexture.State == AssetState.Loaded)
                 DrawTexture(_bestiaryRankLightTexture.Value, bounds, Color.White);
@@ -187,7 +228,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 return;
 
             if (asset.State == AssetState.NotLoaded)
-                asset = Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+                DeferredTextureLoader.Request(asset);
 
             if (asset.State != AssetState.Loaded)
                 return;
@@ -236,17 +277,47 @@ namespace TerrarianCompendium.UI.Vanilla
             DrawTextureAsset(TextureAssets.NpcHeadBoss, WallOfFleshHeadIndex, bounds);
         }
 
+        public static void DrawBossHead(Rectangle bounds, int npcType)
+        {
+            int[] bossHeadTextures = NPCID.Sets.BossHeadTextures;
+
+            if (bossHeadTextures == null || npcType < 0 || npcType >= bossHeadTextures.Length)
+                return;
+
+            int headIndex = bossHeadTextures[npcType];
+
+            if (headIndex < 0)
+                return;
+
+            DrawTextureAsset(TextureAssets.NpcHeadBoss, headIndex, bounds);
+        }
+
         public static void DrawRemixWorldIcon(Rectangle bounds)
         {
             if (bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
-            _remixWorldTexture ??= Main.Assets.Request<Texture2D>(RemixWorldTexturePath, AssetRequestMode.AsyncLoad);
+            _remixWorldTexture = DeferredTextureLoader.Request(RemixWorldTexturePath, _remixWorldTexture);
 
             if (_remixWorldTexture.State != AssetState.Loaded)
                 return;
 
             DrawTexture(_remixWorldTexture.Value, bounds, Color.White);
+        }
+
+        public static void DrawNotTheBeesWorldIcon(Rectangle bounds)
+        {
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            _notTheBeesWorldTexture = DeferredTextureLoader.Request(
+                NotTheBeesWorldTexturePath,
+                _notTheBeesWorldTexture);
+
+            if (_notTheBeesWorldTexture.State != AssetState.Loaded)
+                return;
+
+            DrawTexture(_notTheBeesWorldTexture.Value, bounds, Color.White);
         }
 
         private static void DrawTextureAsset(Asset<Texture2D>[] assets, int index, Rectangle bounds)
@@ -260,7 +331,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 return;
 
             if (asset.State == AssetState.NotLoaded)
-                asset = Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+                DeferredTextureLoader.Request(asset);
 
             if (asset.State != AssetState.Loaded)
                 return;

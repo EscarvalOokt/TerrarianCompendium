@@ -2,6 +2,7 @@ using System;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
+using TerrarianCompendium.Journey;
 using ItemTooltip = TerrariaModder.Core.UI.Widgets.ItemTooltip;
 
 namespace TerrarianCompendium.UI.Vanilla
@@ -13,17 +14,22 @@ namespace TerrarianCompendium.UI.Vanilla
         private readonly VanillaItemIcon _icon;
         private int _clickId;
         private int _itemId;
+        private Action _rightClicked;
+        private Action _supplementalTooltipRegistrar;
 
-        public VanillaItemRelationButton(Action<int> clicked)
+        public VanillaItemRelationButton(Action<int> clicked, JourneyResearchState journeyResearchState = null)
         {
             _clicked = clicked;
-            _icon = new VanillaItemIcon
+            _icon = new VanillaItemIcon(journeyResearchState)
             {
                 ShowTooltip = false,
                 IgnoresMouseInteraction = true
             };
             Append(_icon);
+            OnLeftMouseDown += HandleLeftMouseDown;
+            OnRightMouseDown += HandleRightMouseDown;
             OnLeftClick += OnClicked;
+            OnRightClick += OnRightClicked;
         }
 
         public void Bind(int itemId, bool isMissing)
@@ -31,13 +37,20 @@ namespace TerrarianCompendium.UI.Vanilla
             Bind(itemId, isMissing, itemId);
         }
 
-        public void Bind(int itemId, bool isMissing, int clickId)
+        public void Bind(
+            int itemId,
+            bool isMissing,
+            int clickId,
+            Action supplementalTooltipRegistrar = null,
+            Action rightClicked = null)
         {
             _itemId = Math.Max(0, itemId);
             _clickId = _itemId > 0 ? Math.Max(0, clickId) : 0;
+            _supplementalTooltipRegistrar = _itemId > 0 ? supplementalTooltipRegistrar : null;
+            _rightClicked = _itemId > 0 ? rightClicked : null;
             _icon.ItemId = _itemId;
             _icon.IsMissing = _itemId > 0 && isMissing;
-            IgnoresMouseInteraction = _itemId <= 0 || _clickId <= 0;
+            IgnoresMouseInteraction = _itemId <= 0 || (_clickId <= 0 && _rightClicked == null);
         }
 
         public override void RecalculateChildren()
@@ -74,13 +87,41 @@ namespace TerrarianCompendium.UI.Vanilla
             UIRenderer.DrawRectOutline(x, y, width, height, UIColors.Border);
 
             if (IsMouseHovering)
+            {
                 ItemTooltip.Set(_itemId);
+                _icon.RegisterResearchSupplementalTooltip();
+                _supplementalTooltipRegistrar?.Invoke();
+            }
+        }
+
+        private void HandleLeftMouseDown(UIMouseEvent evt, UIElement listeningElement)
+        {
+            if (_itemId > 0 && evt.Target == this)
+                _icon.TryHandleJourneyDuplicationFromOwnerMouseDown(evt, this, rightClick: false);
+        }
+
+        private void HandleRightMouseDown(UIMouseEvent evt, UIElement listeningElement)
+        {
+            if (_itemId > 0 && evt.Target == this)
+                _icon.TryHandleJourneyDuplicationFromOwnerMouseDown(evt, this, rightClick: true);
         }
 
         private void OnClicked(UIMouseEvent evt, UIElement listeningElement)
         {
+            if (_icon.ConsumeJourneyDuplicationClick())
+                return;
+
             if (_itemId > 0 && _clickId > 0 && evt.Target == this)
                 _clicked?.Invoke(_clickId);
+        }
+
+        private void OnRightClicked(UIMouseEvent evt, UIElement listeningElement)
+        {
+            if (_icon.ConsumeJourneyDuplicationClick())
+                return;
+
+            if (_itemId > 0 && _rightClicked != null && evt.Target == this)
+                _rightClicked();
         }
     }
 }

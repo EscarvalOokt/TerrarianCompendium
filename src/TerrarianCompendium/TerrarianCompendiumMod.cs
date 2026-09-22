@@ -26,7 +26,7 @@ namespace TerrarianCompendium
     {
         public const string ModId = "terrarian-compendium";
         public const string ModName = "Terrarian Compendium";
-        public const string ModVersion = "1.0.0";
+        public const string ModVersion = "1.1.0";
 
         private ArmorSetCatalog _armorSetCatalog;
         private ArmorSetIndex _armorSetIndex;
@@ -37,6 +37,7 @@ namespace TerrarianCompendium
         private TerrarianCompendiumConfig _config;
         private string _failedItemTextCultureName;
         private FishingSourceIndex _fishingSourceIndex;
+        private InventoryItemNavigationHandler _inventoryItemNavigationHandler;
         private bool _isDedicatedServer;
         private ItemCatalog _itemCatalog;
         private ItemTextIndex _itemTextIndex;
@@ -97,6 +98,7 @@ namespace TerrarianCompendium
             SaveRecipeFavoritesIfNeeded(forceRetry: true);
             DestroyBrowserShell();
             DestroyBrowserSession();
+            DeferredTextureLoader.Clear();
 
             Main.OnTickForThirdPartySoftwareOnly -= OnThirdPartySoftwareTick;
             FrameEvents.OnPreUpdate -= OnPreUpdate;
@@ -339,7 +341,11 @@ namespace TerrarianCompendium
                         _itemTextIndex,
                         _browserSession.ChecklistState,
                         Language.GetTextValue);
-                    armorSetDetailsView = new ArmorSetDetailsView(armorSetDetailsModel, navigationState, _localization);
+                    armorSetDetailsView = new ArmorSetDetailsView(
+                        armorSetDetailsModel,
+                        navigationState,
+                        _localization,
+                        _browserSession.JourneyResearchState);
                 }
                 catch (Exception exception)
                 {
@@ -362,6 +368,9 @@ namespace TerrarianCompendium
                         _npcCatalog,
                         bestiaryFilterState,
                         bestiaryFilterCatalog,
+                        _browserSession.ChecklistState,
+                        _npcLootIndex,
+                        _browserSession.JourneyResearchState,
                         _merchantSourceIndex);
                     bestiaryBrowserView = new BestiaryBrowserView(
                         bestiaryBrowserModel,
@@ -433,7 +442,8 @@ namespace TerrarianCompendium
                     _itemTextIndex,
                     stationDisplayIndex,
                     directCraftingService,
-                    _localization);
+                    _localization,
+                    _browserSession.JourneyResearchState);
             }
 
             var itemDetailsModel = new ItemDetailsModel(
@@ -462,6 +472,7 @@ namespace TerrarianCompendium
                 _itemTextIndex,
                 stationDisplayIndex,
                 directCraftingService,
+                _browserSession.JourneyResearchState,
                 recipeFilterState,
                 bestiaryFilterCatalog,
                 _localization);
@@ -479,12 +490,14 @@ namespace TerrarianCompendium
                         _browserSession.ChecklistState,
                         _localization,
                         _merchantSourceIndex,
-                        VanillaBestiaryNativeBridge.GetDisplayName);
+                        VanillaBestiaryNativeBridge.GetDisplayName,
+                        Language.GetTextValue);
                     npcDetailsView = new NpcDetailsView(
                         npcDetailsModel,
                         navigationState,
                         bestiaryFilterCatalog,
-                        _localization);
+                        _localization,
+                        _browserSession.JourneyResearchState);
                 }
                 catch (Exception exception)
                 {
@@ -504,6 +517,22 @@ namespace TerrarianCompendium
                 navigationState,
                 _localization);
             _browserShell.Register();
+
+            try
+            {
+                _inventoryItemNavigationHandler = new InventoryItemNavigationHandler(
+                    _itemCatalog,
+                    IsInventoryItemNavigationEnabled,
+                    _browserShell.OpenItem,
+                    _logger);
+                _inventoryItemNavigationHandler.Start();
+            }
+            catch (Exception exception)
+            {
+                _logger?.Error($"[{ModName}] Failed to start inventory Item navigation.", exception);
+                _inventoryItemNavigationHandler?.Stop();
+                _inventoryItemNavigationHandler = null;
+            }
         }
 
         public void OnWorldUnload()
@@ -511,6 +540,7 @@ namespace TerrarianCompendium
             SaveRecipeFavoritesIfNeeded(forceRetry: true);
             DestroyBrowserShell();
             DestroyBrowserSession();
+            DeferredTextureLoader.Clear();
         }
 
         public void OnConfigChanged()
@@ -518,11 +548,15 @@ namespace TerrarianCompendium
             if (_isDedicatedServer)
                 return;
 
-            _logger?.Info($"[{ModName}] Config reloaded. " + $"StorageDiscoveryEnabled={IsStorageDiscoveryEnabled()}.");
+            _logger?.Info(
+                $"[{ModName}] Config reloaded. " +
+                $"StorageDiscoveryEnabled={IsStorageDiscoveryEnabled()}, " +
+                $"InventoryItemNavigationEnabled={IsInventoryItemNavigationEnabled()}.");
         }
 
         private void OnPreUpdate()
         {
+            DeferredTextureLoader.ProcessPending();
             _browserShell?.BeginUpdateFrame();
         }
 
@@ -719,6 +753,11 @@ namespace TerrarianCompendium
             return _config?.StorageDiscoveryEnabled != false;
         }
 
+        private bool IsInventoryItemNavigationEnabled()
+        {
+            return _config?.InventoryItemNavigationEnabled != false;
+        }
+
         private void DestroyBrowserSession()
         {
             if (_browserSession == null)
@@ -730,6 +769,9 @@ namespace TerrarianCompendium
 
         private void DestroyBrowserShell()
         {
+            _inventoryItemNavigationHandler?.Stop();
+            _inventoryItemNavigationHandler = null;
+
             if (_browserShell == null)
                 return;
 

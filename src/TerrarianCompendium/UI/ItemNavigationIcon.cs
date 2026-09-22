@@ -2,7 +2,6 @@ using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
-using Terraria;
 using Terraria.UI;
 using TerrarianCompendium.Catalog;
 using TerrarianCompendium.UI.Vanilla;
@@ -108,10 +107,7 @@ namespace TerrarianCompendium.UI
 
         private static void RequestJourneyAtlasAsync()
         {
-            if (_journeyAtlas != null)
-                return;
-
-            _journeyAtlas = Main.Assets.Request<Texture2D>(JourneyAtlasPath, AssetRequestMode.AsyncLoad);
+            _journeyAtlas = DeferredTextureLoader.Request(JourneyAtlasPath, _journeyAtlas);
         }
     }
 }

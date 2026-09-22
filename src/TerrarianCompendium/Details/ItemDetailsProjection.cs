@@ -14,13 +14,6 @@ namespace TerrarianCompendium.Details
         Researched
     }
 
-    internal sealed class ItemDetailsRecipeResultReference(int itemId, string name, bool isFound)
-    {
-        public int ItemId { get; } = itemId;
-        public string Name { get; } = name ?? throw new ArgumentNullException(nameof(name));
-        public bool IsFound { get; } = isFound;
-    }
-
     internal sealed class ItemDetailsNpcSourceReference(int npcNetId, string name)
     {
         public int NpcNetId { get; } = npcNetId;
@@ -113,7 +106,7 @@ namespace TerrarianCompendium.Details
             IEnumerable<ItemDetailsArmorSetReference> armorSets,
             bool recipeDataAvailable,
             int producingRecipeCount,
-            IEnumerable<ItemDetailsRecipeResultReference> usedInResults,
+            bool hasRecipeRelations,
             bool hasRecipe,
             bool isCraftableNow,
             int? craftingStationRequiredTileId,
@@ -130,7 +123,6 @@ namespace TerrarianCompendium.Details
             IEnumerable<ItemDetailsNpcSourceReference> purchasableFromMerchants = null)
         {
             if (armorSets == null) throw new ArgumentNullException(nameof(armorSets));
-            if (usedInResults == null) throw new ArgumentNullException(nameof(usedInResults));
             if (droppedByNpcSources == null) throw new ArgumentNullException(nameof(droppedByNpcSources));
             if (worldSources == null) throw new ArgumentNullException(nameof(worldSources));
             if (openableSources == null) throw new ArgumentNullException(nameof(openableSources));
@@ -138,7 +130,6 @@ namespace TerrarianCompendium.Details
             if (fishingVariants == null) throw new ArgumentNullException(nameof(fishingVariants));
 
             ArmorSets = Copy(armorSets, nameof(armorSets));
-            UsedInResults = Copy(usedInResults, nameof(usedInResults));
             DroppedByNpcSources = Copy(droppedByNpcSources, nameof(droppedByNpcSources));
             WorldSources = Copy(worldSources, nameof(worldSources));
             OpenableSources = Copy(openableSources, nameof(openableSources));
@@ -168,6 +159,7 @@ namespace TerrarianCompendium.Details
             ResearchStatus = researchStatus;
             RecipeDataAvailable = recipeDataAvailable;
             ProducingRecipeCount = producingRecipeCount;
+            HasRecipeRelations = hasRecipeRelations;
             HasRecipe = hasRecipe;
             IsCraftableNow = isCraftableNow;
             CraftingStationRequiredTileId = craftingStationRequiredTileId;
@@ -199,7 +191,7 @@ namespace TerrarianCompendium.Details
         public IReadOnlyList<ItemDetailsArmorSetReference> ArmorSets { get; }
         public bool RecipeDataAvailable { get; }
         public int ProducingRecipeCount { get; }
-        public IReadOnlyList<ItemDetailsRecipeResultReference> UsedInResults { get; }
+        public bool HasRecipeRelations { get; }
         public bool HasRecipe { get; }
         public bool IsCraftableNow { get; }
         public int? CraftingStationRequiredTileId { get; }

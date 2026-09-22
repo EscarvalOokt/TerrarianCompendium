@@ -260,7 +260,11 @@ namespace TerrarianCompendium.Tests.Details
             Assert.That(projection.MerchantStock[0].Item.Name, Is.EqualTo("Localized Drop"));
             Assert.That(projection.MerchantStock[0].IsAlwaysAvailable, Is.False);
             Assert.That(projection.MerchantStock[0].Variants, Has.Count.EqualTo(1));
-            Assert.That(projection.MerchantStock[0].Variants[0].ConditionDescriptions, Is.EqualTo(["Night"]));
+            NpcDetailsMerchantCondition nightCondition = projection.MerchantStock[0].Variants[0].Conditions[0];
+            Assert.That(
+                nightCondition.Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.DayTime, isNegated: true)));
+            Assert.That(nightCondition.Description, Is.EqualTo("Night"));
             Assert.That(projection.MerchantStock[1].Item.ItemId, Is.EqualTo(2));
             Assert.That(projection.MerchantStock[1].Item.Name, Is.EqualTo("Localized Other"));
             Assert.That(projection.MerchantStock[1].Item.IsFound, Is.True);
@@ -320,8 +324,20 @@ namespace TerrarianCompendium.Tests.Details
             NpcDetailsMerchantStockEntry stock = projection.MerchantStock[0];
             Assert.That(stock.IsAlwaysAvailable, Is.False);
             Assert.That(stock.Variants, Has.Count.EqualTo(2));
-            Assert.That(stock.Variants[0].ConditionDescriptions, Is.EqualTo(["Blood Moon"]));
-            Assert.That(stock.Variants[1].ConditionDescriptions, Is.EqualTo(["Hardmode", "Jungle biome"]));
+            Assert.That(stock.Variants[0].Conditions, Has.Count.EqualTo(1));
+            Assert.That(
+                stock.Variants[0].Conditions[0].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.BloodMoon)));
+            Assert.That(stock.Variants[0].Conditions[0].Description, Is.EqualTo("Blood Moon"));
+            Assert.That(stock.Variants[1].Conditions, Has.Count.EqualTo(2));
+            Assert.That(
+                stock.Variants[1].Conditions[0].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.HardMode)));
+            Assert.That(stock.Variants[1].Conditions[0].Description, Is.EqualTo("Hardmode"));
+            Assert.That(
+                stock.Variants[1].Conditions[1].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.ZoneJungle)));
+            Assert.That(stock.Variants[1].Conditions[1].Description, Is.EqualTo("Jungle biome"));
         }
 
         [Test]
@@ -349,9 +365,75 @@ namespace TerrarianCompendium.Tests.Details
 
             context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
 
+            IReadOnlyList<NpcDetailsMerchantCondition> conditions = projection.MerchantStock[0].Variants[0].Conditions;
+            Assert.That(conditions, Has.Count.EqualTo(2));
             Assert.That(
-                projection.MerchantStock[0].Variants[0].ConditionDescriptions,
-                Is.EqualTo(["Guide is present", "Player has Magic Mirror"]));
+                conditions[0].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.NpcPresent, 20)));
+            Assert.That(conditions[0].Description, Is.EqualTo("Guide is present"));
+            Assert.That(
+                conditions[1].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.PlayerHasItem, 2)));
+            Assert.That(conditions[1].Description, Is.EqualTo("Player has Magic Mirror"));
+        }
+
+        [Test]
+        public void TryGetProjection_MerchantStock_UsesNativeTextResolverForMoonPhase()
+        {
+            var merchantIndex = new MerchantSourceIndex(
+            [
+                new MerchantSourceRelation(
+                    10,
+                    1,
+                    new MerchantSourceVariant(
+                        1,
+                        [new MerchantSourceCondition(MerchantSourceConditionKind.MoonPhase, 3)]))
+            ]);
+            TestContextData context = CreateContext(
+                merchantSourceIndex: merchantIndex,
+                nativeTextResolver: key => key == "GameUI.WaningCrescent" ? "Waning Crescent" : null);
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
+
+            NpcDetailsMerchantCondition condition = projection.MerchantStock[0].Variants[0].Conditions[0];
+            Assert.Multiple(() =>
+            {
+                Assert.That(
+                    condition.Condition,
+                    Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.MoonPhase, 3)));
+                Assert.That(condition.Description, Is.EqualTo("Moon phase: Waning Crescent"));
+            });
+        }
+
+        [Test]
+        public void TryGetProjection_MerchantStock_UnresolvedArgumentsUseSafeFallbacks()
+        {
+            var merchantIndex = new MerchantSourceIndex(
+            [
+                new MerchantSourceRelation(
+                    10,
+                    1,
+                    new MerchantSourceVariant(
+                        1,
+                        [
+                            new MerchantSourceCondition(MerchantSourceConditionKind.NpcPresent, 999),
+                            new MerchantSourceCondition(MerchantSourceConditionKind.PlayerHasItem, 999)
+                        ]))
+            ]);
+            TestContextData context = CreateContext(merchantSourceIndex: merchantIndex);
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
+
+            IReadOnlyList<NpcDetailsMerchantCondition> conditions = projection.MerchantStock[0].Variants[0].Conditions;
+            Assert.That(conditions, Has.Count.EqualTo(2));
+            Assert.That(
+                conditions[0].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.NpcPresent, 999)));
+            Assert.That(conditions[0].Description, Is.EqualTo("Unknown NPC is present"));
+            Assert.That(
+                conditions[1].Condition,
+                Is.EqualTo(new MerchantSourceCondition(MerchantSourceConditionKind.PlayerHasItem, 999)));
+            Assert.That(conditions[1].Description, Is.EqualTo("Player has Unknown item"));
         }
 
         [Test]
@@ -459,8 +541,110 @@ namespace TerrarianCompendium.Tests.Details
             context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection after);
 
             Assert.That(after, Is.Not.SameAs(before));
-            Assert.That(before.MerchantStock[0].Variants[0].ConditionDescriptions, Is.EqualTo(["Daytime"]));
-            Assert.That(after.MerchantStock[0].Variants[0].ConditionDescriptions, Is.EqualTo(["Localized daytime"]));
+            Assert.That(before.MerchantStock[0].Variants[0].Conditions[0].Description, Is.EqualTo("Daytime"));
+            Assert.That(after.MerchantStock[0].Variants[0].Conditions[0].Description, Is.EqualTo("Localized daytime"));
+            Assert.That(
+                after.MerchantStock[0].Variants[0].Conditions[0].Condition,
+                Is.EqualTo(before.MerchantStock[0].Variants[0].Conditions[0].Condition));
+        }
+
+        [Test]
+        public void TryGetProjection_KillStatistics_ProjectsSlainBannerAndProgress()
+        {
+            TestContextData context = CreateContext(
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter: true,
+                    slainCount: 37,
+                    bannerItemId: 2,
+                    bannerKillCount: 137,
+                    killsPerBanner: 50));
+            context.ItemTextIndex.ReplaceSnapshot(
+                "test",
+                new Dictionary<int, string> { [1] = "Drop", [2] = "Zombie Banner" },
+                new Dictionary<int, string> { [1] = string.Empty, [2] = string.Empty });
+            context.Checklist.MarkFound(2);
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(projection.HasKillStatistics, Is.True);
+                Assert.That(projection.HasKillCounter, Is.True);
+                Assert.That(projection.SlainCount, Is.EqualTo(37));
+                Assert.That(projection.BannerItem, Is.Not.Null);
+                Assert.That(projection.BannerItem.ItemId, Is.EqualTo(2));
+                Assert.That(projection.BannerItem.Name, Is.EqualTo("Zombie Banner"));
+                Assert.That(projection.BannerItem.IsCollectionTracked, Is.True);
+                Assert.That(projection.BannerItem.IsFound, Is.True);
+                Assert.That(projection.BannerItem.IsNavigable, Is.True);
+                Assert.That(projection.BannerProgress, Is.EqualTo(37));
+                Assert.That(projection.BannerProgressTarget, Is.EqualTo(50));
+            });
+        }
+
+        [Test]
+        public void TryGetProjection_BannerProgress_AtThresholdWrapsToNextBanner()
+        {
+            TestContextData context = CreateContext(
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter: true,
+                    slainCount: 50,
+                    bannerItemId: 2,
+                    bannerKillCount: 50,
+                    killsPerBanner: 50));
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
+
+            Assert.That(projection.BannerProgress, Is.Zero);
+            Assert.That(projection.BannerProgressTarget, Is.EqualTo(50));
+        }
+
+        [Test]
+        public void TryGetProjection_KillStatistics_WithoutBanner_PreservesSlainOnly()
+        {
+            TestContextData context = CreateContext(
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter: true,
+                    slainCount: 4,
+                    bannerItemId: null,
+                    bannerKillCount: 0,
+                    killsPerBanner: 0));
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(projection.HasKillStatistics, Is.True);
+                Assert.That(projection.HasKillCounter, Is.True);
+                Assert.That(projection.SlainCount, Is.EqualTo(4));
+                Assert.That(projection.BannerItem, Is.Null);
+                Assert.That(projection.BannerProgress, Is.Zero);
+                Assert.That(projection.BannerProgressTarget, Is.Zero);
+            });
+        }
+
+        [Test]
+        public void TryGetProjection_KillStatistics_WithoutKillCounter_PreservesBannerOnly()
+        {
+            TestContextData context = CreateContext(
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter: false,
+                    slainCount: 0,
+                    bannerItemId: 2,
+                    bannerKillCount: 7,
+                    killsPerBanner: 50));
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(projection.HasKillStatistics, Is.True);
+                Assert.That(projection.HasKillCounter, Is.False);
+                Assert.That(projection.SlainCount, Is.Zero);
+                Assert.That(projection.BannerItem.ItemId, Is.EqualTo(2));
+                Assert.That(projection.BannerProgress, Is.EqualTo(7));
+                Assert.That(projection.BannerProgressTarget, Is.EqualTo(50));
+            });
         }
 
         [Test]
@@ -477,10 +661,12 @@ namespace TerrarianCompendium.Tests.Details
 
         private static TestContextData CreateContext(
             Func<NpcCatalogEntry, NpcDifficultyMode, NpcBestiaryMetadataSnapshot> metadataFactory = null,
+            Func<NpcCatalogEntry, NpcBestiaryKillStatisticsSnapshot> killStatisticsProvider = null,
             IEnumerable<NpcLootRelation> relations = null,
             MerchantSourceIndex merchantSourceIndex = null,
             Func<NpcCatalogEntry, string> npcNameProvider = null,
-            CompendiumLocalization localization = null)
+            CompendiumLocalization localization = null,
+            Func<string, string> nativeTextResolver = null)
         {
             var npcCatalog = NpcCatalog.Create(
             [
@@ -496,6 +682,12 @@ namespace TerrarianCompendium.Tests.Details
             var itemTextIndex = new ItemTextIndex(itemCatalog);
             var lootIndex = NpcLootIndex.Create(npcCatalog, relations ?? Array.Empty<NpcLootRelation>());
             metadataFactory ??= (_, _) => CreateMetadata(true, "NPC");
+            killStatisticsProvider ??= _ => new NpcBestiaryKillStatisticsSnapshot(
+                hasKillCounter: false,
+                slainCount: 0,
+                bannerItemId: null,
+                bannerKillCount: 0,
+                killsPerBanner: 0);
             localization ??= _localization;
 
             var model = new NpcDetailsModel(
@@ -506,8 +698,10 @@ namespace TerrarianCompendium.Tests.Details
                 checklist,
                 localization,
                 metadataFactory,
+                killStatisticsProvider,
                 merchantSourceIndex,
-                npcNameProvider);
+                npcNameProvider,
+                nativeTextResolver);
 
             return new TestContextData(model, checklist, itemTextIndex);
         }
@@ -535,5 +729,53 @@ namespace TerrarianCompendium.Tests.Details
 
             public ItemTextIndex ItemTextIndex { get; } = itemTextIndex;
         }
+
+        // ReSharper disable AccessToModifiedClosure
+        [Test]
+        public void TryGetProjection_KillStatisticsChange_InvalidatesCachedProjection()
+        {
+            var slainCount = 1;
+            TestContextData context = CreateContext(
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter: true,
+                    slainCount: slainCount,
+                    bannerItemId: 2,
+                    bannerKillCount: slainCount,
+                    killsPerBanner: 50));
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection before);
+            slainCount = 2;
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection after);
+
+            Assert.That(after, Is.Not.SameAs(before));
+            Assert.That(before.SlainCount, Is.EqualTo(1));
+            Assert.That(after.SlainCount, Is.EqualTo(2));
+            Assert.That(after.BannerProgress, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void TryGetProjection_BannerProgressChange_InvalidatesCachedProjection()
+        {
+            var bannerKillCount = 10;
+            TestContextData context = CreateContext(
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(
+                    hasKillCounter: true,
+                    slainCount: 3,
+                    bannerItemId: 2,
+                    bannerKillCount: bannerKillCount,
+                    killsPerBanner: 50));
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection before);
+            bannerKillCount = 11;
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection after);
+
+            Assert.That(after, Is.Not.SameAs(before));
+            Assert.That(before.SlainCount, Is.EqualTo(3));
+            Assert.That(after.SlainCount, Is.EqualTo(3));
+            Assert.That(before.BannerProgress, Is.EqualTo(10));
+            Assert.That(after.BannerProgress, Is.EqualTo(11));
+        }
+
+        // ReSharper restore AccessToModifiedClosure
     }
 }

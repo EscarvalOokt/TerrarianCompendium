@@ -13,12 +13,13 @@ Use it to plan your next craft, look up an item, or work towards a complete coll
 ## Features
 
 - Browse **Items**, **Armor Sets**, **Recipes** and **Bestiary** in a movable, resizable window with Back and Forward navigation.
+- Open supported vanilla slot items directly in the Compendium with **Alt+Right Click**, using the same Item navigation and history as the browser.
 - Search item and NPC names, narrow results with category and progress filters, and choose from several sorting options. Item search can also include descriptions.
-- Track your item collection for each character, spot missing items through silhouettes, and view Journey Mode research status.
+- Track your item collection for each character, spot missing items through silhouettes, and view Journey Mode research status. Fully researched items in the Compendium support native Journey duplication shortcuts.
 - Explore item sources: crafting, NPC drops, potential merchant stock, chests, pots, tree shaking, fishing, and possible contents of bags, crates and other openable items.
-- Check recipe ingredients, alternatives, crafting stations and other requirements. Follow **Used in** links, save favorite recipes, filter by **Craftable Now**, and craft directly from item or recipe details.
+- Check recipe ingredients, alternatives, crafting stations and other requirements. Open an item in **Recipes** to browse a contextual catalog of recipes that use it, save favorite recipes, filter by **Craftable Now**, and craft directly from item or recipe details.
 - Look up armor set bonuses and valid combinations of armor pieces, including sets with multiple variants.
-- Browse NPC encounter progress, habitats, debuff immunities and item drops with their chances and conditions. Compare Classic, Expert and Master stats for your current world's progression.
+- Browse NPC encounter progress, habitats, debuff immunities and item drops with their chances and conditions. NPC Details can also show native kill statistics and banner progress when available. Filter NPCs by Bestiary criteria, whether they have drops, missing collection drops, and—when Journey research is available—unresearched drops. Compare Classic, Expert and Master stats for your current world's progression.
 
 ## Collection Tracking
 
@@ -37,12 +38,17 @@ Merchant stock lists show what an NPC can sell and the conditions attached to th
 Press **F6** to open TerrariaModder's mod menu, then select **Terrarian Compendium**.
 
 - **Storage Discovery** — Mark items as found while supported vanilla storage is open. Enabled by default.
+- **Inventory Item Navigation** — Allow **Alt+Right Click** to open supported vanilla slot items in the Compendium. Enabled by default.
 
 ## Controls
 
 - **Alt+I** — Open or close Terrarian Compendium while in a world.
+- **Alt+Right Click** on a supported vanilla inventory-like slot — Open the hovered valid item in the Compendium. Supported surfaces are the main inventory, coin/ammo slots, an open chest or personal storage, equipment/vanity/dye/misc-equipment slots, and the current NPC shop.
+- **Alt+Left Click** on a fully researched Item inside the Compendium — Duplicate its native Journey stack.
+- **Alt+Right Click** on a fully researched Item inside the Compendium — Duplicate one Item; hold the button to repeat with Terraria's native cadence.
+- **Alt+Left Click** on the category up arrow in **Items** or **Recipes** — Return directly to that section's root.
 
-You can rebind **Toggle Terrarian Compendium** in TerrariaModder's **F6** menu.
+You can rebind **Toggle Terrarian Compendium** in TerrariaModder's **F6** menu. The vanilla-slot **Alt+Right Click** navigation shortcut is fixed and is controlled by **Inventory Item Navigation**. That setting does not disable Journey duplication actions inside the Compendium.
 
 ## Requirements
 
@@ -79,6 +85,10 @@ Local and Steam Cloud versions of a character keep separate collection records. 
 ### Other mods
 
 Built for vanilla Terraria through TerrariaModder.
+
+### Known TerrariaModder UI limitation
+
+With TerrariaModder Core 0.4.1, holding Terraria's Favorite/loadout-share modifier over certain non-empty inventory or equipment slots can temporarily hide the Compendium. The window returns after the modifier is released or the cursor leaves the affected slot. This also occurs when **Inventory Item Navigation** is disabled; Terrarian Compendium does not apply a local workaround for this framework/runtime interaction.
 
 ## Languages
 

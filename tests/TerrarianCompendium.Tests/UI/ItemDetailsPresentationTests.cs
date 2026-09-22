@@ -341,7 +341,7 @@ namespace TerrarianCompendium.Tests.UI
                 armorSets: [],
                 recipeDataAvailable: false,
                 producingRecipeCount: 0,
-                usedInResults: [],
+                hasRecipeRelations: false,
                 hasRecipe: false,
                 isCraftableNow: false,
                 craftingStationRequiredTileId: null,

@@ -10,6 +10,7 @@ using TerrarianCompendium.Bestiary;
 using TerrarianCompendium.Catalog;
 using TerrarianCompendium.Crafting;
 using TerrarianCompendium.Details;
+using TerrarianCompendium.Journey;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.Navigation;
 using TerrarianCompendium.Recipes;
@@ -25,7 +26,7 @@ namespace TerrarianCompendium.UI
         private const int IdentityTextGap = 6;
         private const int ResearchIndicatorSize = 28;
         private const int CraftingActionSize = 28;
-        private const int CraftButtonWidth = 56;
+        private const int CraftButtonWidth = 28;
         private const int RowHeight = 18;
         private const int RelationTopGap = 4;
         private const int SourceGroupGap = 6;
@@ -43,6 +44,7 @@ namespace TerrarianCompendium.UI
         private readonly List<TextLabelElement> _fishingOrSeparators = new();
         private readonly List<FishingVariantRow> _fishingVariantRows = new();
         private readonly VanillaItemIcon _icon;
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly CompendiumLocalization _localization;
         private readonly ItemDetailsModel _model;
         private readonly BrowserNavigationState _navigationState;
@@ -53,7 +55,6 @@ namespace TerrarianCompendium.UI
         private readonly ResearchStatusIndicator _researchIndicator;
         private readonly List<VanillaIconValueElement> _statElements = new();
         private readonly VanillaIconButton _stationRecipesButton;
-        private readonly List<VanillaItemRelationButton> _usedInButtons = new();
         private readonly VanillaCoinValueElement _valueElement;
         private readonly List<WorldLootSourceIcon> _worldSourceIcons = new();
         private int _itemId = -1;
@@ -70,19 +71,21 @@ namespace TerrarianCompendium.UI
             ItemTextIndex itemTextIndex,
             RecipeStationDisplayIndex stationDisplayIndex,
             VanillaDirectCraftingService directCraftingService,
+            JourneyResearchState journeyResearchState = null,
             RecipeFilterState recipeFilterState = null,
             VanillaBestiaryFilterCatalog bestiaryFilterCatalog = null,
             CompendiumLocalization localization = null)
         {
             _model = model ?? throw new ArgumentNullException(nameof(model));
             _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
+            _journeyResearchState = journeyResearchState;
             _recipeFilterState = recipeFilterState;
             _bestiaryFilterCatalog = bestiaryFilterCatalog;
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             Width = StyleDimension.Fill;
             SetPadding(0f);
 
-            _icon = new VanillaItemIcon();
+            _icon = new VanillaItemIcon(_journeyResearchState);
             Append(_icon);
 
             _valueElement = new VanillaCoinValueElement();
@@ -100,7 +103,8 @@ namespace TerrarianCompendium.UI
                 directCraftingService,
                 itemTextIndex ?? throw new ArgumentNullException(nameof(itemTextIndex)),
                 stationDisplayIndex,
-                _localization);
+                _localization,
+                _journeyResearchState);
             Append(_craftButton);
 
             _stationRecipesButton = new VanillaIconButton(
@@ -171,7 +175,6 @@ namespace TerrarianCompendium.UI
             HideUnusedFishingVariantRows(0);
             HideUnusedFishingOrSeparators(0);
             HideUnusedOpenableContentButtons(0);
-            HideUnusedUsedInButtons(0);
             Height.Set(ContentPadding * 2 + TextHeight, 0f);
         }
 
@@ -260,19 +263,19 @@ namespace TerrarianCompendium.UI
                 cursor += CalculateRelationGridHeight(_projection.OpenableContents.Count, width);
             }
 
-            if (!HasUsedInSection(_projection))
+            if (!HasRecipeStationSection(_projection))
                 return;
 
             DrawSectionSeparator(x, width, ref cursor);
-            DrawSectionTitle(_localization.Get(CompendiumTextKeys.ItemDetails.UsedIn), x, width, ref cursor);
-            DrawUsedIn(_projection, x, width, ref cursor);
+            DrawSectionTitle(_localization.Get(CompendiumTextKeys.ItemDetails.RecipesSection), x, width, ref cursor);
+            DrawRecipeStation(x, width, ref cursor);
         }
 
         private void DrawSources(ItemDetailsProjection projection, int x, int width, ref int cursor)
         {
             var hasPreviousGroup = false;
 
-            if (projection.ProducingRecipeCount > 0)
+            if (projection.HasRecipeRelations)
             {
                 AddGroupGap(ref cursor, ref hasPreviousGroup);
                 DrawGroupLabel(_localization.Get(CompendiumTextKeys.ItemDetails.Crafting), x, width, ref cursor);
@@ -316,23 +319,10 @@ namespace TerrarianCompendium.UI
             }
         }
 
-        private void DrawUsedIn(ItemDetailsProjection projection, int x, int width, ref int cursor)
+        private void DrawRecipeStation(int x, int width, ref int cursor)
         {
-            var hasPreviousGroup = false;
-
-            if (projection.UsedInResults.Count > 0)
-            {
-                AddGroupGap(ref cursor, ref hasPreviousGroup);
-                DrawGroupLabel(_localization.Get(CompendiumTextKeys.ItemDetails.RecipesSection), x, width, ref cursor);
-                cursor += RelationTopGap + CalculateRelationGridHeight(projection.UsedInResults.Count, width);
-            }
-
-            if (projection.CraftingStationRequiredTileId.HasValue)
-            {
-                AddGroupGap(ref cursor, ref hasPreviousGroup);
-                DrawGroupLabel(_localization.Get(CompendiumTextKeys.ItemDetails.CraftingStation), x, width, ref cursor);
-                cursor += RelationTopGap + CraftingActionSize;
-            }
+            DrawGroupLabel(_localization.Get(CompendiumTextKeys.ItemDetails.CraftingStation), x, width, ref cursor);
+            cursor += RelationTopGap + CraftingActionSize;
         }
 
         private void SynchronizeLocalization()
@@ -384,7 +374,6 @@ namespace TerrarianCompendium.UI
                 HideUnusedFishingVariantRows(0);
                 HideUnusedFishingOrSeparators(0);
                 HideUnusedOpenableContentButtons(0);
-                HideUnusedUsedInButtons(0);
                 Height.Set(ContentPadding * 2 + TextHeight, 0f);
                 Recalculate();
                 return;
@@ -401,7 +390,7 @@ namespace TerrarianCompendium.UI
 
             _valueElement.Bind(
                 _projection.Value,
-                ItemID.LuckyCoin,
+                leadingItemId: 0,
                 showCopperWhenZero: false,
                 tooltipText: _localization.Get(CompendiumTextKeys.ItemDetails.BaseValueTooltip));
 
@@ -472,15 +461,6 @@ namespace TerrarianCompendium.UI
 
             HideUnusedOpenableContentButtons(_projection.OpenableContents.Count);
 
-            EnsureUsedInButtonCapacity(_projection.UsedInResults.Count);
-            for (var index = 0; index < _projection.UsedInResults.Count; index++)
-            {
-                ItemDetailsRecipeResultReference reference = _projection.UsedInResults[index];
-                _usedInButtons[index].Bind(reference.ItemId, !reference.IsFound);
-            }
-
-            HideUnusedUsedInButtons(_projection.UsedInResults.Count);
-
             BindCraftButton();
             Recalculate();
         }
@@ -515,23 +495,29 @@ namespace TerrarianCompendium.UI
             int sourceCursor = GetSourcesContentTop(_projection, contentWidth);
             var hasPreviousSourceGroup = false;
 
-            if (_projection.ProducingRecipeCount > 0)
+            if (_projection.HasRecipeRelations)
             {
                 AddGroupGap(ref sourceCursor, ref hasPreviousSourceGroup);
                 sourceCursor += RowHeight + RelationTopGap;
 
-                _craftingRecipesButton.TooltipText = _localization.Format(
-                    CompendiumTextKeys.ItemDetails.CraftingRecipesCount,
-                    _projection.ProducingRecipeCount);
+                _craftingRecipesButton.TooltipText = _localization.Get(CompendiumTextKeys.ItemDetails.RecipesSection);
                 _craftingRecipesButton.Left.Set(ContentPadding, 0f);
                 _craftingRecipesButton.Top.Set(sourceCursor, 0f);
                 _craftingRecipesButton.Width.Set(CraftingActionSize, 0f);
                 _craftingRecipesButton.Height.Set(CraftingActionSize, 0f);
 
-                _craftButton.Left.Set(ContentPadding + Math.Max(0, contentWidth - CraftButtonWidth), 0f);
-                _craftButton.Top.Set(sourceCursor, 0f);
-                _craftButton.Width.Set(CraftButtonWidth, 0f);
-                _craftButton.Height.Set(CraftingActionSize, 0f);
+                if (_projection.ProducingRecipeCount > 0)
+                {
+                    _craftButton.Left.Set(ContentPadding + Math.Max(0, contentWidth - CraftButtonWidth), 0f);
+                    _craftButton.Top.Set(sourceCursor, 0f);
+                    _craftButton.Width.Set(CraftButtonWidth, 0f);
+                    _craftButton.Height.Set(CraftingActionSize, 0f);
+                }
+                else
+                {
+                    HideCraftButton();
+                }
+
                 sourceCursor += CraftingActionSize;
             }
             else
@@ -597,23 +583,11 @@ namespace TerrarianCompendium.UI
                     columns);
             }
 
-            int usedInCursor = GetUsedInContentTop(_projection, contentWidth);
-            var hasPreviousUsedInGroup = false;
-
-            if (_projection.UsedInResults.Count > 0)
-            {
-                AddGroupGap(ref usedInCursor, ref hasPreviousUsedInGroup);
-                usedInCursor += RowHeight + RelationTopGap;
-                LayoutItemRelationGrid(_usedInButtons, _projection.UsedInResults.Count, usedInCursor, columns);
-                usedInCursor += CalculateRelationGridHeight(_projection.UsedInResults.Count, contentWidth);
-            }
-
             if (_projection.CraftingStationRequiredTileId.HasValue)
             {
-                AddGroupGap(ref usedInCursor, ref hasPreviousUsedInGroup);
-                usedInCursor += RowHeight + RelationTopGap;
+                int stationCursor = GetRecipeStationContentTop(_projection, contentWidth) + RowHeight + RelationTopGap;
                 _stationRecipesButton.Left.Set(ContentPadding, 0f);
-                _stationRecipesButton.Top.Set(usedInCursor, 0f);
+                _stationRecipesButton.Top.Set(stationCursor, 0f);
                 _stationRecipesButton.Width.Set(CraftingActionSize, 0f);
                 _stationRecipesButton.Height.Set(CraftingActionSize, 0f);
             }
@@ -843,7 +817,7 @@ namespace TerrarianCompendium.UI
 
         private void NavigateToCraftingRecipes()
         {
-            if (_projection == null || !_projection.RecipeDataAvailable || _projection.ProducingRecipeCount <= 0)
+            if (_projection == null || !_projection.RecipeDataAvailable || !_projection.HasRecipeRelations)
                 return;
 
             _navigationState.Navigate(BrowserDestination.ForRecipeQuery(_projection.ItemId));
@@ -967,7 +941,7 @@ namespace TerrarianCompendium.UI
         {
             while (_openableSourceButtons.Count < count)
             {
-                var button = new VanillaItemRelationButton(NavigateToOpenableSource);
+                var button = new VanillaItemRelationButton(NavigateToOpenableSource, _journeyResearchState);
                 _openableSourceButtons.Add(button);
                 Append(button);
             }
@@ -983,7 +957,7 @@ namespace TerrarianCompendium.UI
         {
             while (_openableContentButtons.Count < count)
             {
-                var button = new VanillaItemRelationButton(NavigateToOpenableSource);
+                var button = new VanillaItemRelationButton(NavigateToOpenableSource, _journeyResearchState);
                 _openableContentButtons.Add(button);
                 Append(button);
             }
@@ -993,30 +967,6 @@ namespace TerrarianCompendium.UI
         {
             for (int index = startIndex; index < _openableContentButtons.Count; index++)
                 _openableContentButtons[index].Hide();
-        }
-
-        private void NavigateToUsedInResult(int itemId)
-        {
-            if (itemId <= 0)
-                return;
-
-            _navigationState.Navigate(BrowserDestination.ForRecipeQuery(itemId));
-        }
-
-        private void EnsureUsedInButtonCapacity(int count)
-        {
-            while (_usedInButtons.Count < count)
-            {
-                var button = new VanillaItemRelationButton(NavigateToUsedInResult);
-                _usedInButtons.Add(button);
-                Append(button);
-            }
-        }
-
-        private void HideUnusedUsedInButtons(int startIndex)
-        {
-            for (int index = startIndex; index < _usedInButtons.Count; index++)
-                _usedInButtons[index].Hide();
         }
 
         private void HideIcon()
@@ -1079,15 +1029,15 @@ namespace TerrarianCompendium.UI
                           CalculateRelationGridHeight(projection.OpenableContents.Count, contentWidth);
             }
 
-            if (HasUsedInSection(projection))
-                height += GetSectionHeaderHeight() + GetUsedInAreaHeight(projection, contentWidth);
+            if (HasRecipeStationSection(projection))
+                height += GetSectionHeaderHeight() + GetRecipeStationAreaHeight();
 
             return height;
         }
 
         private static bool HasSourcesSection(ItemDetailsProjection projection)
         {
-            return projection.ProducingRecipeCount > 0 ||
+            return projection.HasRecipeRelations ||
                    projection.DroppedByNpcSources.Count > 0 ||
                    projection.PurchasableFromMerchants.Count > 0 ||
                    projection.WorldSources.Count > 0 ||
@@ -1100,9 +1050,9 @@ namespace TerrarianCompendium.UI
             return projection.OpenableContents.Count > 0;
         }
 
-        private static bool HasUsedInSection(ItemDetailsProjection projection)
+        private static bool HasRecipeStationSection(ItemDetailsProjection projection)
         {
-            return projection.UsedInResults.Count > 0 || projection.CraftingStationRequiredTileId.HasValue;
+            return projection.CraftingStationRequiredTileId.HasValue;
         }
 
         private static int GetSourcesAreaHeight(ItemDetailsProjection projection, int contentWidth)
@@ -1111,7 +1061,7 @@ namespace TerrarianCompendium.UI
             var hasGroup = false;
             AddGroupHeight(
                 ref height,
-                projection.ProducingRecipeCount > 0 ? RowHeight + RelationTopGap + CraftingActionSize : 0,
+                projection.HasRecipeRelations ? RowHeight + RelationTopGap + CraftingActionSize : 0,
                 ref hasGroup);
             AddGroupHeight(
                 ref height,
@@ -1156,23 +1106,9 @@ namespace TerrarianCompendium.UI
             return height;
         }
 
-        private static int GetUsedInAreaHeight(ItemDetailsProjection projection, int contentWidth)
+        private static int GetRecipeStationAreaHeight()
         {
-            var height = 0;
-            var hasGroup = false;
-            AddGroupHeight(
-                ref height,
-                projection.UsedInResults.Count > 0
-                    ? RowHeight +
-                      RelationTopGap +
-                      CalculateRelationGridHeight(projection.UsedInResults.Count, contentWidth)
-                    : 0,
-                ref hasGroup);
-            AddGroupHeight(
-                ref height,
-                projection.CraftingStationRequiredTileId.HasValue ? RowHeight + RelationTopGap + CraftingActionSize : 0,
-                ref hasGroup);
-            return height;
+            return RowHeight + RelationTopGap + CraftingActionSize;
         }
 
         private static void AddGroupHeight(ref int height, int groupHeight, ref bool hasGroup)
@@ -1242,7 +1178,7 @@ namespace TerrarianCompendium.UI
             return HasPossibleDropsSection(projection) ? top + GetSectionHeaderHeight() : top;
         }
 
-        private int GetUsedInContentTop(ItemDetailsProjection projection, int contentWidth)
+        private int GetRecipeStationContentTop(ItemDetailsProjection projection, int contentWidth)
         {
             int top = GetContentTopAfterSources(projection, contentWidth);
             if (HasPossibleDropsSection(projection))
@@ -1251,7 +1187,7 @@ namespace TerrarianCompendium.UI
                        CalculateRelationGridHeight(projection.OpenableContents.Count, contentWidth);
             }
 
-            return HasUsedInSection(projection) ? top + GetSectionHeaderHeight() : top;
+            return HasRecipeStationSection(projection) ? top + GetSectionHeaderHeight() : top;
         }
 
         private static int GetSectionHeaderHeight()

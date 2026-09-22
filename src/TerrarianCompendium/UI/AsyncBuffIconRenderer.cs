@@ -1,7 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ReLogic.Content;
-using Terraria;
 using Terraria.GameContent;
 
 namespace TerrarianCompendium.UI
@@ -59,10 +58,7 @@ namespace TerrarianCompendium.UI
 
         private static void RequestAsync(Asset<Texture2D> asset)
         {
-            if (asset == null || asset.State != AssetState.NotLoaded)
-                return;
-
-            Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+            DeferredTextureLoader.Request(asset);
         }
     }
 }

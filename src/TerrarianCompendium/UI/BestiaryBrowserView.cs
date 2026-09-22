@@ -72,6 +72,8 @@ namespace TerrarianCompendium.UI
                 _filterState,
                 resolvedFilterCatalog,
                 _model.MerchantStockFilterAvailable,
+                _model.LootAwareFiltersAvailable,
+                _model.UnresearchedDropsFilterAvailable,
                 _localization,
                 OnFiltersChanged);
             _filterPopover = new VanillaPopover(this, _filterButton, _filterPopup);

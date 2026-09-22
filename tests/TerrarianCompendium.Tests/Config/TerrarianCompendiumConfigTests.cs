@@ -15,11 +15,31 @@ namespace TerrarianCompendium.Tests.Config
         }
 
         [Test]
-        public void Version_IsTwo()
+        public void NewConfig_InventoryItemNavigationIsEnabledByDefault()
         {
             var config = new TerrarianCompendiumConfig();
 
-            Assert.That(config.Version, Is.EqualTo(2));
+            Assert.That(config.InventoryItemNavigationEnabled, Is.True);
+        }
+
+        [Test]
+        public void InventoryItemNavigation_CanBeDisabledIndependently()
+        {
+            var config = new TerrarianCompendiumConfig
+            {
+                InventoryItemNavigationEnabled = false
+            };
+
+            Assert.That(config.InventoryItemNavigationEnabled, Is.False);
+            Assert.That(config.StorageDiscoveryEnabled, Is.True);
+        }
+
+        [Test]
+        public void Version_IsThree()
+        {
+            var config = new TerrarianCompendiumConfig();
+
+            Assert.That(config.Version, Is.EqualTo(3));
         }
     }
 }

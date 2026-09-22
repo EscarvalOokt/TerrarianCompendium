@@ -6,6 +6,7 @@ using Terraria.UI;
 using TerrariaModder.Core.UI;
 using TerrariaModder.Core.UI.Widgets;
 using TerrarianCompendium.Catalog;
+using TerrarianCompendium.Journey;
 using ItemTooltip = TerrariaModder.Core.UI.Widgets.ItemTooltip;
 
 namespace TerrarianCompendium.UI.Vanilla
@@ -25,6 +26,7 @@ namespace TerrarianCompendium.UI.Vanilla
         private readonly Func<int, bool> _isSelected;
         private readonly Action<int> _itemClicked;
         private readonly Func<IReadOnlyList<ItemCatalogEntry>> _itemsProvider;
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly VanillaScrollRegion _scroll;
         private readonly List<ItemSlotElement> _slots = new();
         private string _emptyStateText;
@@ -38,6 +40,7 @@ namespace TerrarianCompendium.UI.Vanilla
             Func<int, bool> isMissing = null,
             Func<int, bool> isSelected = null,
             Func<int, string> cornerBadgeText = null,
+            JourneyResearchState journeyResearchState = null,
             string emptyStateText = null)
         {
             _scroll = scroll ?? throw new ArgumentNullException(nameof(scroll));
@@ -46,6 +49,7 @@ namespace TerrarianCompendium.UI.Vanilla
             _isMissing = isMissing;
             _isSelected = isSelected;
             _cornerBadgeText = cornerBadgeText;
+            _journeyResearchState = journeyResearchState;
             _emptyStateText = emptyStateText ?? string.Empty;
             Width = StyleDimension.Fill;
             SetPadding(0f);
@@ -138,7 +142,7 @@ namespace TerrarianCompendium.UI.Vanilla
         {
             while (_slots.Count < capacity)
             {
-                var slot = new ItemSlotElement(_itemClicked);
+                var slot = new ItemSlotElement(_itemClicked, _journeyResearchState);
                 _slots.Add(slot);
                 Append(slot);
             }
@@ -152,10 +156,10 @@ namespace TerrarianCompendium.UI.Vanilla
             private int _itemId;
             private bool _selected;
 
-            public ItemSlotElement(Action<int> clicked)
+            public ItemSlotElement(Action<int> clicked, JourneyResearchState journeyResearchState)
             {
                 _clicked = clicked;
-                _icon = new VanillaItemIcon
+                _icon = new VanillaItemIcon(journeyResearchState)
                 {
                     ShowTooltip = false,
                     IgnoresMouseInteraction = false
@@ -164,6 +168,8 @@ namespace TerrarianCompendium.UI.Vanilla
 
                 _cornerBadge = new CornerBadgeElement();
                 Append(_cornerBadge);
+                OnLeftMouseDown += HandleLeftMouseDown;
+                OnRightMouseDown += HandleRightMouseDown;
                 OnLeftClick += OnClicked;
             }
 
@@ -218,11 +224,29 @@ namespace TerrarianCompendium.UI.Vanilla
                 UIRenderer.DrawRectOutline(x, y, width, height, _selected ? UIColors.Accent : UIColors.Border);
 
                 if (IsMouseHovering || _icon.IsMouseHovering)
+                {
                     ItemTooltip.Set(_itemId);
+                    _icon.RegisterResearchSupplementalTooltip();
+                }
+            }
+
+            private void HandleLeftMouseDown(UIMouseEvent evt, UIElement listeningElement)
+            {
+                if (_itemId > 0 && (evt.Target == this || evt.Target == _icon))
+                    _icon.TryHandleJourneyDuplicationFromOwnerMouseDown(evt, this, rightClick: false);
+            }
+
+            private void HandleRightMouseDown(UIMouseEvent evt, UIElement listeningElement)
+            {
+                if (_itemId > 0 && (evt.Target == this || evt.Target == _icon))
+                    _icon.TryHandleJourneyDuplicationFromOwnerMouseDown(evt, this, rightClick: true);
             }
 
             private void OnClicked(UIMouseEvent evt, UIElement listeningElement)
             {
+                if (_icon.ConsumeJourneyDuplicationClick())
+                    return;
+
                 if (_itemId > 0 && (evt.Target == this || evt.Target == _icon))
                     _clicked?.Invoke(_itemId);
             }

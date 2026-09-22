@@ -2,13 +2,13 @@
 
 This document defines the accepted product architecture and implementation boundaries of Terrarian Compendium.
 
-It is an architecture specification, not an implementation plan. The current production browser has working Items, Armor Sets, Recipes, and Bestiary domains, shared Details, typed cross-domain navigation, Back/Forward history, requirement-aware and collection-aware Recipe filtering, dedicated Item acquisition indices including potential merchant stock, native-compatible direct crafting, versioned persistent recipe identity, client-local recipe favorites, culture-aware vanilla Item text, project-owned English/Russian browser localization, and a stabilized compact retained-UI presentation.
+It is an architecture specification, not an implementation plan. The current production browser has working Items, Armor Sets, Recipes, and Bestiary domains, shared Details, typed cross-domain navigation, Back/Forward history, contextual Item↔Recipe exploration with requirement-aware and collection-aware Recipe filtering, dedicated Item acquisition indices including potential merchant stock, native-compatible direct crafting, versioned persistent recipe identity, client-local recipe favorites, culture-aware vanilla Item text, project-owned English/Russian browser localization, and a stabilized compact retained-UI presentation.
 
 ## Sources of truth
 
 1. The installed Terraria and TerrariaModder runtime define external runtime behavior and API contracts.
 2. The current production implementation defines behavior actually available in the built mod.
-3. This document records accepted Terrarian Compendium architecture decisions and the frozen v1.0 target boundaries.
+3. This document records accepted Terrarian Compendium architecture decisions and the current compatibility and product boundaries.
 4. `docs/testing.md` defines automated testing and runtime acceptance boundaries.
 
 When documentation and production code disagree about current project behavior, production code is the source of truth until the discrepancy is resolved explicitly.
@@ -17,7 +17,7 @@ Implementation order and unresolved product decisions are outside the scope of t
 
 ## Product scope
 
-The v1.0 product scope is a vanilla Terraria compendium centered on:
+The current product scope is a vanilla Terraria compendium centered on:
 
 - collection tracking and discovery;
 - item browsing, filtering, sorting, progress, and details;
@@ -25,10 +25,10 @@ The v1.0 product scope is a vanilla Terraria compendium centered on:
 - recipe-result browsing, recipe details, current craftability, direct crafting, requirement/collection filtering, and Item↔Recipe relations;
 - local recipe favorites backed by a versioned persistent recipe identity;
 - vanilla NPC/loot browsing and Bestiary details;
-- additional item relations that are explicitly researched and accepted for v1.0;
+- additional item relations that are explicitly researched and accepted for the current scope;
 - project-owned browser localization synchronized to the active Terraria culture, with English as the source/fallback locale and Russian as the current release translation.
 
-The following are not required for v1.0:
+The following are not required for the current scope:
 
 - recursive Craft Planner / CraftPath;
 - automatic multi-step ingredient expansion and path optimization;
@@ -37,9 +37,9 @@ The following are not required for v1.0:
 - multiplayer/team planner or favorites synchronization;
 - Magic Storage and custom-content/provider ecosystems.
 
-## v1.0 compatibility contract
+## Current compatibility contract
 
-The v1.0 compatibility boundary is frozen to Terraria 1.4.5.8, TerrariaModder Core 0.4.1, .NET Framework 4.8, and the vanilla-only product scope described above. Moving to another Terraria/TerrariaModder target or changing these compatibility guarantees requires a separate compatibility decision and revalidation.
+The current compatibility boundary is frozen to Terraria 1.4.5.8, TerrariaModder Core 0.4.1, .NET Framework 4.8, and the vanilla-only product scope described above. Moving to another Terraria/TerrariaModder target or changing these compatibility guarantees requires a separate compatibility decision and revalidation.
 
 Persistence and migration contracts:
 
@@ -58,11 +58,11 @@ Multiplayer/runtime ownership contracts:
 
 Merchant compatibility contract:
 
-- `MerchantSourceIndex` remains a static/content-lifetime potential Merchant↔Item relation for the v1.0 target;
+- `MerchantSourceIndex` remains a static/content-lifetime potential Merchant↔Item relation for the current target;
 - a relation means that the NPC can sell the Item in a confirmed vanilla state, not that the Item is currently present in the live shop;
 - current shop availability and ordinary live coin prices remain outside the static relation contract.
 
-These boundaries are part of the frozen v1.0 architecture. Expanding them requires an explicit release/compatibility decision rather than being treated as an incidental implementation detail.
+These boundaries are part of the current architecture. Expanding them requires an explicit release/compatibility decision rather than being treated as an incidental implementation detail.
 
 ## Current implementation baseline
 
@@ -75,9 +75,10 @@ The current implementation provides the following architecture-relevant baseline
 - dedicated immutable `WorldLootSourceIndex`, `OpenableItemLootIndex`, `FishingSourceIndex`, and `MerchantSourceIndex` relations consumed by Details/browser projections without changing collection discovery ownership;
 - bidirectional Openable Item relations, direct world-source relations for researched chest/pot/tree-shaking acquisition paths, Fishing relations that preserve separate vanilla rule variants with normalized rule conditions and stopper-derived reachability restrictions, and bidirectional potential Merchant↔Item stock relations with normalized sale variants and availability restrictions;
 - immutable `ArmorSetCatalog` / `ArmorSetIndex` preserving exact native variants and supporting Item↔Armor Set relations and Armor Set Details;
-- immutable `RecipeCatalog` / `RecipeIndex`, versioned `RecipePersistentKey` identity, session-owned current craftability, result-centric Recipe browsing/details, reusable direct crafting from Item/Recipe Details, requirement/collection/favorite filtering, and client-local persistent favorites;
-- immutable `NpcCatalog` / bidirectional `NpcLootIndex`, Terraria-owned encounter progress, Bestiary browsing/filtering/sorting including potential merchant-stock filtering, and NPC Details with static potential loot plus merchant-stock projection where applicable;
+- immutable `RecipeCatalog` / `RecipeIndex`, versioned `RecipePersistentKey` identity, session-owned current craftability, a global result-item Recipe catalog plus contextual Item-driven `Used in` projection, producing-variant Recipe Details, reusable direct crafting from Item/Recipe Details, requirement/collection/favorite filtering, and client-local persistent favorites;
+- immutable `NpcCatalog` / bidirectional `NpcLootIndex`, Terraria-owned encounter progress, Bestiary browsing/filtering/sorting including potential merchant-stock filtering, and NPC Details with static potential loot, native kill/banner statistics, plus merchant-stock projection where applicable;
 - a shared `BrowserNavigationState` with typed Item, Armor Set, Recipe-query, exact Recipe, NPC, and section-root destinations plus runtime Back/Forward history;
+- optional vanilla Item-slot navigation gated by the client-side `Inventory Item Navigation` setting: fixed `Alt + Right Click` on explicitly supported inventory/storage/equipment/shop surfaces opens the ordinary Item destination through the same navigation owner and consumes the accepted native RMB gesture before `ItemSlot.Handle(...)` processing;
 - a shared `BrowserDetailsSurface` that hosts separate domain-specific Item, Armor Set, Recipe, and NPC projections rather than a universal Details model;
 - one shared Vanilla/Core UI host adapter for Terraria retained UI inside TerrariaModder-owned lifecycle, panel, input, tooltip, and top-level integration boundaries;
 - revision-based invalidation for mutable session/browser owners and deterministic projections, while static relations remain in dedicated immutable catalogs/indices;
@@ -145,7 +146,7 @@ Current session-owned examples include:
 
 Client-local mutable state includes `RecipeFavoriteState`. It is retained independently from per-character collection/session state, stores `RecipePersistentKey` identities rather than runtime recipe indices, and exposes revision-based invalidation to its consumers.
 
-Current browser-composition state includes `RecipeFilterState`, which owns Recipe filtering criteria and revision state independently of browser destination/history identity, and `BestiaryFilterState`, which owns encounter/native/merchant-stock filter selections and revision state independently of NPC destination/history identity. `BestiaryBrowserModel` separately owns search text, sort mode, and sort direction. Recipe result-item category navigation is owned separately by `RecipeBrowserModel` through its own `ChecklistNavigationFilter`; it is independent from the Item Browser category state, `RecipeFilterState`, and browser history identity.
+Current browser-composition state includes `RecipeFilterState`, which owns Recipe filtering criteria and revision state independently of browser destination/history identity, and `BestiaryFilterState`, which owns one native Bestiary criterion, one loot-aware drop criterion, encounter filtering, the project-owned merchant-stock filter, and revision state independently of NPC destination/history identity. Native and loot-aware criteria are mutually exclusive within their own groups but can be active together. `BestiaryBrowserModel` separately owns search text, sort mode, and sort direction. Recipe result-item category navigation is owned separately by `RecipeBrowserModel` through its own `ChecklistNavigationFilter`; it is independent from the Item Browser category state, `RecipeFilterState`, and browser history identity. The contextual Recipe Item is carried by Recipe-query/exact-Recipe destinations and synchronized into the Recipe Browser as a derived catalog context; it is not another `RecipeFilterState` criterion or category-navigation owner.
 
 Models and views consume these owners; they do not become alternative owners of the same state.
 
@@ -167,7 +168,7 @@ The current project-owned localization scope does not include TerrariaModder con
 
 `ItemCatalog` is the immutable base item catalog.
 
-The v1.0 base-catalog inclusion contract uses positive vanilla Item IDs (`1 .. ItemID.Count - 1`) as candidates. An entry is included only when the target ID is not marked by Terraria as `ItemID.Sets.Deprecated` or `ItemID.Sets.ItemsThatShouldNotBeInInventory`, `SetDefaults` preserves the requested Item identity, and the resulting Item name is non-blank. Journey research eligibility, recipe presence, and loot/acquisition relation presence do not define base-catalog membership.
+The current base-catalog inclusion contract uses positive vanilla Item IDs (`1 .. ItemID.Count - 1`) as candidates. An entry is included only when the target ID is not marked by Terraria as `ItemID.Sets.Deprecated` or `ItemID.Sets.ItemsThatShouldNotBeInInventory`, `SetDefaults` preserves the requested Item identity, and the resulting Item name is non-blank. Journey research eligibility, recipe presence, and loot/acquisition relation presence do not define base-catalog membership.
 
 The project intentionally keeps different identity/taxonomy concepts separate:
 
@@ -179,6 +180,8 @@ The project intentionally keeps different identity/taxonomy concepts separate:
 They must not be collapsed into one universal hierarchy.
 
 Contextual `Other` is derived as a residual of the current browser context rather than stored as a canonical semantic membership.
+
+Item category navigation uses the shared category-navigation control. Ordinary upward navigation follows taxonomy parents; its Alt-modified upward action clears the Item category scope and returns directly to the Items section root through the existing `BrowserNavigationState`.
 
 ### Collection and discovery
 
@@ -193,6 +196,10 @@ Discovery can consume supported runtime sources such as:
 Discovery updates collection state but does not redefine the base item universe.
 
 Journey research remains Terraria-native state. The project may infer `Found` conservatively from confirmed research progress, but does not replace or duplicate Journey ownership.
+
+The shared semantic Item presentation for a concrete Item consumes the optional `JourneyResearchState` through the existing research-presentation adapter and exposes fully researched status without becoming a second research-state owner. Semantic Item surfaces reuse that presentation consistently, while representative or decorative Item textures may opt out when they illustrate another concept rather than the concrete Item entity.
+
+For fully researched Items in a Journey-compatible context, the same shared semantic Item presentation owns the Compendium interaction policy for native duplication: `Alt + Left Click` requests the native stack duplication behavior, including `OnlyNeedOneInInventory()` semantics, while `Alt + Right Click` requests native one-by-one duplication and preserves Terraria's repeat cadence while held. Execution is delegated to the confirmed Journey context-29 path; Terrarian Compendium does not implement a parallel item-grant, Journey persistence, or networking contract.
 
 ### Search and sorting
 
@@ -239,7 +246,7 @@ Item acquisition data is represented by dedicated immutable relation indices rat
 
 - `WorldLootSourceIndex` maps Items to researched direct world-generation/environment sources such as chest groups, pots, and tree shaking;
 - `OpenableItemLootIndex` stores direct Openable Item relations in both directions: target Item→openable sources and openable Item→possible direct item outputs;
-- `FishingSourceIndex` maps Items to direct vanilla fishing rule variants and preserves normalized required conditions together with stopper-derived excluded reachability restrictions where those restrictions are part of the accepted v1.0 source semantics;
+- `FishingSourceIndex` maps Items to direct vanilla fishing rule variants and preserves normalized required conditions together with stopper-derived excluded reachability restrictions where those restrictions are part of the accepted current source semantics;
 - `MerchantSourceIndex` stores the static potential Merchant NPC↔Item stock relation in both directions. Each merchant offer preserves one or more normalized sale variants, where conditions within a variant are conjunctive and variants are alternatives. Separate availability flags represent random stock and native shop-capacity limitations. Confirmed static special-currency metadata may be retained, while ordinary current coin prices are runtime projections and are not part of the static relation.
 
 These relations are static content-lifetime data. They are separate from collection discovery and from runtime current-storage/shop state: discovering an Item in an open container does not redefine a static acquisition relation, a static container/openable relation does not imply that the Item has been discovered, and a merchant relation means that the NPC can sell the Item in at least one confirmed vanilla state rather than that it is available now. Player sellback/buyback entries are not part of merchant potential stock.
@@ -321,7 +328,7 @@ Browser/detail models read this state through the owner; they do not independent
 
 `DirectCraftButton` is a reusable Details control shared by Item Details and Recipe Details. It presents only currently craftable producing variants in an anchored `VanillaPopover`; zero available variants preserve the disabled Craft state. The control observes the crafting revision so an open popover can refresh its variants without becoming a mutable crafting-state owner. Craft execution does not close the popover; closing remains part of the normal transient-surface lifecycle. Hold-to-repeat uses Terraria's stack-split/repeat cadence rather than a project-owned repeat timer.
 
-Recursive ingredient solving and multi-step CraftPath behavior are outside the mandatory v1.0 architecture.
+Recursive ingredient solving and multi-step CraftPath behavior are outside the mandatory current architecture.
 
 ### Recipe filtering
 
@@ -339,13 +346,15 @@ The current contract includes:
 
 Requirement criteria use AND semantics. Completion and research are result-item predicates. Current craftability and favorites are concrete-recipe predicates.
 
-For a result Item with multiple producing recipes, the Item remains in the Recipe Browser when the result-item predicates pass and at least one concrete producing recipe satisfies all active recipe-level predicates. Active criteria must be satisfied by the same candidate recipe; separate recipes do not combine partial matches.
+In the global Recipe catalog, a result Item remains visible when the result-item predicates pass and at least one concrete producing recipe satisfies all active recipe-level predicates. Active criteria must be satisfied by the same candidate recipe; separate recipes do not combine partial matches.
 
-The same matching contract constrains Recipe-query Details so that the variants offered for a selected result Item remain consistent with the Recipe Browser projection.
+When a contextual Item is active, `RecipeIndex` first supplies the concrete recipes that use that Item, including expanded RecipeGroup members. A result Item enters the contextual catalog only when at least one of those contextual candidate recipes satisfies the same filter contract. All active recipe-level criteria must therefore be satisfied by the same contextual candidate recipe; an unrelated producing recipe cannot make the contextual result visible.
 
-Item-name search and result-item category navigation are separate constraints on visible result Items and are not stored in `RecipeFilterState`. Recipe category navigation reuses the existing Item taxonomy, applies to the result Item once before concrete-recipe matching, and is not added to `RecipeFilterMatcher`. Search does not participate in Recipe-query destination validity; the active category scope does.
+Recipe-query Details independently apply the same producing-recipe matching contract to the query Item when it has producing variants. This keeps producing-variant Details consistent with active filters while the contextual catalog remains a `Used in` projection of the same query Item.
 
-Recipe filter state and Recipe result-item category scope are not part of `BrowserDestination` or browser history identity. If active filters or the active category scope invalidate the current Recipe query, navigation is normalized to the Recipes section root without turning either state into history state.
+Item-name search and result-item category navigation are separate constraints on visible result Items and are not stored in `RecipeFilterState`. Recipe category navigation reuses the existing Item taxonomy, applies to contextual/global result Items, and is not added to `RecipeFilterMatcher`. Neither search, category scope, nor Recipe filters define validity of the contextual Item itself.
+
+Recipe filter state and Recipe result-item category scope are not part of `BrowserDestination` or browser history identity. An active contextual Item remains valid while it belongs to the Item catalog and participates in at least one producing or using Recipe relation; filters or category scope may reduce its contextual result catalog to empty without clearing that Recipe-query destination.
 
 The canonical crafting-station requirement remains the recipe's tile requirement. User-facing station presentation maps that tile to a representative catalog Item where available; raw tile IDs are not a player-facing contract.
 
@@ -353,17 +362,17 @@ The canonical crafting-station requirement remains the recipe's tile requirement
 
 Recipe Browser is a domain-specific browser model/view rather than a generic extension of the Item Browser filter model.
 
-Its current universe contains only result Items with at least one producing recipe surviving the active Recipe filters. Multiple producing recipes do not duplicate the result Item in the grid.
+At the Recipes section root, the browser universe contains result Items with at least one producing recipe surviving the active Recipe filters. Multiple producing recipes do not duplicate the result Item in the grid. With a contextual Item, the catalog is narrowed to result Items produced by filtered recipes that use that Item.
 
-A Recipe query identifies the selected result Item. Recipe-query Details expose the concrete producing recipe variants surviving the active filter set. Selecting a concrete variant opens an exact Recipe destination while preserving query context without creating a new history entry for variant cycling itself. If active filters later invalidate that selected variant while another variant for the same query survives, the current exact destination is normalized to the surviving variant through current-entry replacement rather than by creating a new history step.
+A Recipe query carries the contextual Item ID. That Item acts as the catalog's `Used in` anchor; independently, when it has producing recipes, Recipe-query Details expose the concrete producing variants surviving the active filter set. An Item that is only an ingredient can therefore own a contextual catalog without producing Recipe Details. Selecting a concrete producing variant opens an exact Recipe destination while preserving the same query context without creating a new history entry for variant cycling itself. If active filters later invalidate that selected variant while another producing variant for the query Item survives, the current exact destination is normalized to the surviving variant through current-entry replacement rather than by creating a new history step.
 
-Exact Recipe Details resolves user-facing Item names, recipe-group alternatives, crafting-station presentation, environment requirements, alchemy metadata, current craftability, and favorite state without moving ownership of catalog or mutable state into the UI. Favorite toggling applies to the selected concrete recipe variant.
+Exact Recipe Details resolves recipe-group alternatives, crafting-station presentation, environment requirements, alchemy metadata, current craftability, and favorite state without moving ownership of catalog or mutable state into the UI. Ingredient rows use the shared semantic Item presentation with required stack values; permanent Item names are omitted from the row layout and remain available through the Item tooltip. RecipeGroup requirements keep their concrete alternative Item icons and an explicit alternative-group cue. Favorite toggling applies to the selected concrete recipe variant.
 
 The Recipe Browser exposes a separate favorite-only mode through the shared `RecipeFilterState`. A result Item may also present an aggregate marker when at least one of its producing recipe variants is favorited; this presentation does not make the result Item itself the persistent favorite identity.
 
 Navigation from Recipe Details is available for result Items, ordinary ingredient Items, concrete recipe-group alternatives, and an Item-backed crafting-station requirement.
 
-Recipe result-item category navigation reuses the existing Item category/taxonomy semantics and applies them to the result Item. Items and Recipes keep independent category-navigation state. Category selection remains a Recipe-browser scope and is not folded into `RecipeFilterState`, `BrowserDestination`, browser history identity, or concrete-recipe matching.
+Recipe result-item category navigation reuses the existing Item category/taxonomy semantics and applies them to the result Item. Items and Recipes keep independent category-navigation state. In contextual Recipes, the contextual Item is presented as an enclosing scope above that taxonomy chain without becoming a taxonomy node. Ordinary upward navigation moves through taxonomy parents and exits the Item context from its top level; the supported Alt-modified upward action returns directly to the global Recipes root. Category selection remains a Recipe-browser scope and is not folded into `RecipeFilterState`, `BrowserDestination`, browser history identity, or concrete-recipe matching.
 
 
 ## Bestiary architecture
@@ -380,7 +389,9 @@ The static relation layer is intentionally distinct from both current Vanilla Be
 
 Terraria remains the owner of Bestiary encounter progress. Terrarian Compendium reads finalized entry-level observation from the native Bestiary provider and does not persist or network a duplicate encounter state. Encounter state is used for silhouettes, overall/filtered progress, Encountered/Unknown filtering, and revision/invalidation of the browser projection; it does not gate finalized names, static potential loot, or Item→NPC source relations.
 
-`BestiaryFilterState` owns mutable encounter/native-filter selection plus the project-owned `Has stock` merchant filter for the browser composition. Native metadata filters are derived from the finalized Bestiary filter registrations rather than from a duplicated hardcoded biome/event table; the merchant filter remains separate from native filter IDs. `BestiaryBrowserModel` owns search text, sort mode, and sort direction and combines those values with filter-state revisions and native observation changes to rebuild a deterministic visible-entry projection. Search/native metadata define the Bestiary scope totals; encounter and `Has stock` narrow the visible projection afterward. `Has stock` is backed by `MerchantSourceIndex.ContainsMerchant(...)` and represents potential stock rather than current shop availability.
+`BestiaryFilterState` owns four independent browser-filter concerns: one native Bestiary criterion, one loot-aware drop criterion, Encounter filtering, and the project-owned `Has stock` merchant filter. Native criteria are derived from finalized Bestiary filter registrations rather than from a duplicated hardcoded biome/event table. The loot-aware group is project-owned and exposes `All`, `Has drops`, `Has missing drops`, and, when Journey research state is available, `Has unresearched drops`; only one value can be active inside each native/drop criterion group, while the two groups may be combined. `Has missing drops` reads collection state and `Has unresearched drops` reads Journey research state through their existing owners rather than duplicating that state in Bestiary.
+
+`BestiaryBrowserModel` owns search text, sort mode, and sort direction and combines those values with filter-state revisions, collection/research revisions when relevant, and native observation changes to rebuild a deterministic visible-entry projection. Search, the selected native criterion, and the selected drop criterion define the Bestiary scope totals; Encounter and `Has stock` narrow the visible projection afterward. `Has stock` is backed by `MerchantSourceIndex.ContainsMerchant(...)` and represents potential stock rather than current shop availability.
 
 Bestiary search resolves finalized display names independently of Vanilla unknown-name presentation. Sorting exposes the supported Bestiary-facing modes plus the project-specific NPC ID mode and keeps direction as browser state rather than navigation/history identity.
 
@@ -390,7 +401,7 @@ Bestiary search resolves finalized display names independently of Vanilla unknow
 
 NPC Details uses a local `NpcDifficultyMode` (`Classic`, `Expert`, `Master`) that is presentation state, not a browser destination or persisted preference. Difficulty-specific stats use native NPC scaling for a single-player override and the current active-world progression state, while finalized Bestiary adjustments and `HideStats` remain authoritative. Difficulty-dependent composite-stat adjustments use the same selected mode; in particular, aggregate Eater of Worlds health uses the segment-count mapping for the selected Details difficulty rather than the difficulty of the currently open world.
 
-The Details projection keeps separate concepts for Bestiary rarity stars, rare-creature metadata, spawn/environment descriptors, base/default debuff immunities, monetary value, static item loot, and potential merchant stock. Merchant NPCs expose a `Stock` grid from the shared merchant relation plus a `Conditions` popover that separates truly unconditional Items from conditional variants and presents random/capacity restrictions without evaluating the current runtime shop. Base/default immunity data is a snapshot after native defaults and does not claim to describe dynamic per-AI-phase immunity changes.
+The Details projection keeps separate concepts for Bestiary rarity stars, rare-creature metadata, spawn/environment descriptors, base/default debuff immunities, monetary value, static item loot, native kill/banner statistics, and potential merchant stock. `Slain` consumes Terraria's Bestiary kill tracker only when the finalized entry exposes the native kill-counter element. Banner identity, accumulated banner kills, and kills-per-banner threshold remain Terraria-owned `BannerSystem` / Item metadata; the projection exposes the related banner Item and current progress without persisting or networking a duplicate counter. Merchant NPCs expose a `Stock` grid from the shared merchant relation. Conditional/restricted Stock Items present a compact condition/restriction summary through the shared supplemental Item-tooltip layer and expose full per-offer condition details through an anchored Details-level popover opened from that Stock Item; this presentation preserves normalized variant/restriction semantics without evaluating the current runtime shop. Base/default immunity data is a snapshot after native defaults and does not claim to describe dynamic per-AI-phase immunity changes.
 
 ## Browser navigation and Details
 
@@ -405,7 +416,7 @@ Current destination kinds are:
 - Recipe;
 - NPC.
 
-Item destinations belong to the Items section. Armor Set destinations belong to the Armor Sets section. Recipe-query and Recipe destinations belong to the Recipes section. NPC destinations belong to the Bestiary section. A Recipe query carries the selected result Item ID. Recipe destinations reached from such a query preserve that query Item context.
+Item destinations belong to the Items section. Armor Set destinations belong to the Armor Sets section. Recipe-query and Recipe destinations belong to the Recipes section. NPC destinations belong to the Bestiary section. A Recipe query carries the contextual Item ID used by the Recipes catalog. Recipe destinations reached from such a query preserve that query Item context.
 
 The navigation owner maintains runtime Back/Forward history plus a revision used by consumers such as section views and the shared Details surface. Ordinary navigation appends a destination and discards an obsolete Forward branch after navigating from a historical position. `ReplaceCurrent` normalizes the current destination without creating a normal history entry and coalesces equal neighboring entries.
 
@@ -413,12 +424,19 @@ Browser history is runtime UI state and is not a persistent identity/storage mec
 
 Catalog-entry repeat-click deselection is an interaction policy layered above ordinary navigation. Browser catalog views use the shared `BrowserSelectionNavigation` helper so selecting the currently active entry returns to that section root, while ordinary `BrowserNavigationState.Navigate()` calls — including cross-domain navigation from Details — keep normal navigation semantics.
 
+### External vanilla Item navigation
+
+`InventoryItemNavigationHandler` is the scoped runtime integration boundary for opening concrete Items from supported Vanilla `ItemSlot` surfaces. It does not own a second navigation model: a successful action delegates to `BrowserShell.OpenItem(...)`, which navigates to `BrowserDestination.ForItem(...)` through the existing `BrowserNavigationState` and opens the existing host when necessary. Repeated navigation to the current Item therefore follows ordinary navigation equality/history semantics rather than catalog repeat-click deselection.
+
+The supported surface classes are the main player inventory including coin/ammo slots, the currently open world chest or personal storage, active equipment/vanity/dye/misc-equipment slots, and the current NPC shop. Specialized workflow slots such as reforge, trash, Guide input, Journey/Creative actions, and crafting-specific slots are not part of this navigation contract. Exact target-version context/array mappings remain Terraria research evidence rather than architecture identity.
+
+The interaction is gated by the client-side `Inventory Item Navigation` setting and uses the fixed `Alt + Right Click` chord. Because supported slots already have native RMB behavior, the production boundary is a pre-`ItemSlot.Handle(...)` interception: once the navigation action is accepted, original slot handling remains suppressed until physical RMB release so native open/equip/stack-transfer behavior cannot execute as a residual second action. Ordinary RMB without the navigation modifier remains native. This is a narrow Item-slot integration and must not introduce a parallel global input manager or separate browser navigation owner.
+
 Cross-domain navigation uses this same owner:
 
 - Item Details can open a related Armor Set destination;
 - Armor Set Details can navigate from set members to Item destinations;
-- Item Details can open a producing Recipe query for the Item;
-- Item Details exposes distinct `Used in` result Items that navigate to the corresponding Recipe query;
+- Item Details can open a contextual Recipe query for an Item that has producing or using Recipe relations; the Recipes catalog owns the corresponding `Used in` exploration rather than Item Details;
 - crafting-station Items can navigate to the Recipes root while setting the shared station requirement filter;
 - Recipe Details can navigate from result/ingredient/group-alternative Items to Item destinations;
 - Recipe Details can navigate from an Item-backed station requirement to the representative station Item;
@@ -450,7 +468,9 @@ The shared host boundary centralizes the cross-framework concerns required by th
 - integration with TerrariaModder panel draw, bounds, and z-order ownership;
 - mouse and captured-wheel routing between Core and Vanilla UI;
 - keyboard/text-input ownership and cleanup;
-- shared deferred tooltip lifecycle around Vanilla drawing.
+- framework deferred tooltip lifecycle plus the project-owned supplemental annotation lifecycle around Vanilla drawing.
+
+`SupplementalTooltip` is the shared project-owned layer for annotations that need to coexist with the framework Item tooltip. It participates in the same host-level deferred lifecycle, aggregates project-owned text annotations and compact visual rows into one secondary presentation, applies viewport-aware wrapping/layout, and complements rather than replaces `ItemTooltip` or TerrariaModder's ordinary tooltip services. Domain views register supplemental annotations without taking ownership of framework tooltip state.
 
 The browser input contract handles Escape through the same host/browser boundary with the precedence `focused text input → open transient surface → Compendium window`. Details-level transient surfaces, including the direct-crafting and merchant-stock-conditions popovers, participate in that same contract rather than defining a separate Escape path. The text-input path retains the existing release-tail blocking behavior until physical Escape release so the same key press is not re-observed as a second Terraria action. This policy does not introduce a parallel global input manager.
 
@@ -461,6 +481,8 @@ The browser lifecycle treats Terraria's in-game options window as a close condit
 `VanillaPopover` is the shared production popover primitive. Popover content exposes natural-size measurement through the shared content contract; `VanillaPopover` adds shared chrome, constrains the resulting geometry to the available viewport, and preserves the existing anchoring and transient-surface lifecycle. Production callers should not reintroduce local fixed popover chrome or sizing when the shared measurement contract is sufficient.
 
 Compact Item/NPC value presentation reuses shared retained-UI controls rather than domain-local equivalents. `VanillaIconValueElement` owns the common icon/value row geometry, truncation, and tooltip behavior, while `VanillaCoinValueElement` owns coin-denomination decomposition and compact denomination rendering. Domain views remain responsible for selecting the semantic value and appropriate presentation asset.
+
+Shared vanilla textures are requested through `DeferredTextureLoader`. UI requests preserve `NotLoaded` until a bounded queue performs `ImmediateLoad` on the game update thread: at most four loads per update, stopping before another load once four milliseconds have elapsed. One native load can exceed that time budget. `AsyncLoad` must not be used for these assets: Terraria 1.4.5.8's `Main.LoadItem` skips assets in `Loading`, while world-item drawing immediately dereferences their still-null texture values. The same policy covers Item, NPC, Buff, Tile, Extra, and shared UI textures. Pending requests are deduplicated, rechecked before loading, and cleared on world/mod unload without disposing Terraria-owned assets. Cached UI atlas references are re-enqueued when needed after a queue reset or asset invalidation. Queue scheduling is covered by automated tests; cold-cache joined-client rendering and first-view scrolling require in-game validation.
 
 For mouse input, the host continues to honor `UIRenderer.ShouldBlockForHigherPriorityPanel(...)`. When the Compendium panel is not blocked and its own bounds are registered, the host temporarily unregisters only the Compendium panel's own bounds around `UserInterface.Update()` and restores them afterward. It must not manipulate registrations owned by other Core panels.
 
@@ -477,7 +499,7 @@ Presentation changes may evolve control composition, spacing, icon framing, scro
 
 ## Deferred architecture boundary
 
-The following remain intentionally outside the mandatory v1.0 architecture:
+The following remain intentionally outside the mandatory current architecture:
 
 - recursive Craft Planner / CraftPath;
 - automatic multi-step ingredient expansion and path optimization;
@@ -486,7 +508,7 @@ The following remain intentionally outside the mandatory v1.0 architecture:
 - multiplayer/team planner or favorites synchronization;
 - Magic Storage and custom-content/provider ecosystems.
 
-These deferred systems may consume the v1.0 catalogs and relation indices later; they do not justify a speculative acquisition graph in the v1.0 core.
+These deferred systems may consume the current catalogs and relation indices later; they do not justify a speculative acquisition graph in the current core.
 
 ## Testing boundary
 

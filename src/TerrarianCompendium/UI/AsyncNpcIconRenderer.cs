@@ -139,10 +139,7 @@ namespace TerrarianCompendium.UI
 
         private static void RequestAsync(Asset<Texture2D> asset)
         {
-            if (asset == null || asset.State != AssetState.NotLoaded)
-                return;
-
-            Main.Assets.Request<Texture2D>(asset.Name, AssetRequestMode.AsyncLoad);
+            DeferredTextureLoader.Request(asset);
         }
     }
 }

@@ -9,7 +9,7 @@
         <ImplicitUsings>disable</ImplicitUsings>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,6 +27,7 @@
     <PropertyGroup>
         <TerrariaExe Condition="'$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\Terraria.exe</TerrariaExe>
         <TerrariaModderCoreDll Condition="'$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\TerrariaModder\core\TerrariaModder.Core.dll</TerrariaModderCoreDll>
+        <TerrariaModderHarmonyDll Condition="'$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\TerrariaModder\core\deps\0Harmony.dll</TerrariaModderHarmonyDll>
         <ManifestPath>$(MSBuildThisFileDirectory)..\..\mod\manifest.json</ManifestPath>
         <DeployToGame Condition="'$(DeployToGame)' == ''">false</DeployToGame>
         <TerrariaModDirectory Condition="'$(TerrariaModDirectory)' == '' and '$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\TerrariaModder\mods\terrarian-compendium</TerrariaModDirectory>
@@ -40,6 +41,8 @@
                Text="Terraria.exe was not found at '$(TerrariaExe)'. Update TerrariaDirectory in src\TerrarianCompendium.Local.props."/>
         <Error Condition="'$(TerrariaModderCoreDll)' != '' and !Exists('$(TerrariaModderCoreDll)')"
                Text="TerrariaModder.Core.dll was not found at '$(TerrariaModderCoreDll)'. Update TerrariaDirectory in src\TerrarianCompendium.Local.props."/>
+        <Error Condition="'$(TerrariaModderHarmonyDll)' != '' and !Exists('$(TerrariaModderHarmonyDll)')"
+               Text="0Harmony.dll was not found at '$(TerrariaModderHarmonyDll)'. Verify the TerrariaModder installation under TerrariaDirectory."/>
 
         <Error Condition="'$(XnaFrameworkGameDll)' == ''"
                Text="XnaFrameworkGameDll is not configured. Set it in src\TerrarianCompendium.Local.props."/>
@@ -74,6 +77,11 @@
 
         <Reference Include="TerrariaModder.Core">
             <HintPath>$(TerrariaModderCoreDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
+
+        <Reference Include="0Harmony">
+            <HintPath>$(TerrariaModderHarmonyDll)</HintPath>
             <Private>false</Private>
         </Reference>
     </ItemGroup>

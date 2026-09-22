@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 
 namespace TerrarianCompendium.Bestiary
 {
     internal sealed class BestiaryFilterState
     {
-        private readonly HashSet<int> _activeNativeFilterIds = new();
         private readonly HashSet<int> _validNativeFilterIds;
-        private IReadOnlyCollection<int> _activeNativeFilterIdsSnapshot = Array.Empty<int>();
+        private BestiaryFilterCriterion _bestiaryCriterion;
+        private BestiaryFilterCriterion _dropCriterion;
         private BestiaryEncounterFilter _encounterFilter;
         private bool _hasStockOnly;
         private long _revision;
@@ -24,6 +23,36 @@ namespace TerrarianCompendium.Bestiary
             {
                 if (!_validNativeFilterIds.Add(filterId))
                     throw new ArgumentException($"Duplicate Bestiary filter ID {filterId}.", nameof(nativeFilterIds));
+            }
+        }
+
+        public BestiaryFilterCriterion BestiaryCriterion
+        {
+            get => _bestiaryCriterion;
+            set
+            {
+                ValidateBestiaryCriterion(value);
+
+                if (_bestiaryCriterion == value)
+                    return;
+
+                _bestiaryCriterion = value;
+                _revision++;
+            }
+        }
+
+        public BestiaryFilterCriterion DropCriterion
+        {
+            get => _dropCriterion;
+            set
+            {
+                ValidateDropCriterion(value);
+
+                if (_dropCriterion == value)
+                    return;
+
+                _dropCriterion = value;
+                _revision++;
             }
         }
 
@@ -55,59 +84,76 @@ namespace TerrarianCompendium.Bestiary
             }
         }
 
-        public IReadOnlyCollection<int> ActiveNativeFilterIds => _activeNativeFilterIdsSnapshot;
-
-        public int ActiveNativeFilterCount => _activeNativeFilterIds.Count;
-
         public int ActiveFilterCount =>
-            ActiveNativeFilterCount +
+            (_bestiaryCriterion.IsAll ? 0 : 1) +
+            (_dropCriterion.IsAll ? 0 : 1) +
             (_encounterFilter == BestiaryEncounterFilter.All ? 0 : 1) +
             (_hasStockOnly ? 1 : 0);
+
+        public bool UsesChecklistState => _dropCriterion.Kind == BestiaryFilterCriterionKind.HasMissingDrops;
+
+        public bool UsesJourneyResearchState => _dropCriterion.Kind == BestiaryFilterCriterionKind.HasUnresearchedDrops;
 
         public long Revision => _revision;
 
         public bool IsNativeFilterActive(int filterId)
         {
             ValidateNativeFilterId(filterId);
-            return _activeNativeFilterIds.Contains(filterId);
-        }
-
-        public void ToggleNativeFilter(int filterId)
-        {
-            ValidateNativeFilterId(filterId);
-
-            if (!_activeNativeFilterIds.Remove(filterId))
-                _activeNativeFilterIds.Add(filterId);
-
-            RefreshNativeFilterSnapshot();
-            _revision++;
+            return _bestiaryCriterion == BestiaryFilterCriterion.ForNative(filterId);
         }
 
         public void Clear()
         {
-            if (_encounterFilter == BestiaryEncounterFilter.All && !_hasStockOnly && _activeNativeFilterIds.Count == 0)
+            if (_bestiaryCriterion.IsAll &&
+                _dropCriterion.IsAll &&
+                _encounterFilter == BestiaryEncounterFilter.All &&
+                !_hasStockOnly)
             {
                 return;
             }
 
+            _bestiaryCriterion = BestiaryFilterCriterion.All;
+            _dropCriterion = BestiaryFilterCriterion.All;
             _encounterFilter = BestiaryEncounterFilter.All;
             _hasStockOnly = false;
-            _activeNativeFilterIds.Clear();
-            RefreshNativeFilterSnapshot();
             _revision++;
         }
 
-        private void RefreshNativeFilterSnapshot()
+        private void ValidateBestiaryCriterion(BestiaryFilterCriterion criterion)
         {
-            if (_activeNativeFilterIds.Count == 0)
+            switch (criterion.Kind)
             {
-                _activeNativeFilterIdsSnapshot = Array.Empty<int>();
-                return;
-            }
+                case BestiaryFilterCriterionKind.All:
+                    return;
 
-            var sorted = new List<int>(_activeNativeFilterIds);
-            sorted.Sort();
-            _activeNativeFilterIdsSnapshot = new ReadOnlyCollection<int>(sorted);
+                case BestiaryFilterCriterionKind.Native:
+                    ValidateNativeFilterId(criterion.NativeFilterId);
+                    return;
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(criterion),
+                        criterion.Kind,
+                        "Bestiary criterion must be All or a native Bestiary filter.");
+            }
+        }
+
+        private static void ValidateDropCriterion(BestiaryFilterCriterion criterion)
+        {
+            switch (criterion.Kind)
+            {
+                case BestiaryFilterCriterionKind.All:
+                case BestiaryFilterCriterionKind.HasDrops:
+                case BestiaryFilterCriterionKind.HasMissingDrops:
+                case BestiaryFilterCriterionKind.HasUnresearchedDrops:
+                    return;
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(criterion),
+                        criterion.Kind,
+                        "Drop criterion must be All or a loot-aware Bestiary filter.");
+            }
         }
 
         private void ValidateNativeFilterId(int filterId)

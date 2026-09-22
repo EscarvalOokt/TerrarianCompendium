@@ -43,6 +43,7 @@ namespace TerrarianCompendium.Recipes
 
         private readonly RecipeIndex _recipeIndex = recipeIndex ?? throw new ArgumentNullException(nameof(recipeIndex));
 
+        private int? _contextItemId;
         private IReadOnlyList<ItemCatalogEntry> _matchingItems;
         private ChecklistNavigationFilter _navigationFilter = ChecklistNavigationFilter.AllItems;
         private long _observedChecklistRevision = checklistState.Revision;
@@ -52,6 +53,27 @@ namespace TerrarianCompendium.Recipes
         private long _observedItemTextRevision = itemTextIndex.Revision;
         private long _observedResearchRevision = journeyResearchState?.Revision ?? -1;
         private string _searchQuery = string.Empty;
+
+        public int? ContextItemId
+        {
+            get => _contextItemId;
+            set
+            {
+                if (value is <= 0)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(value),
+                        value.Value,
+                        "Context item ID must be greater than zero.");
+                }
+
+                if (_contextItemId == value)
+                    return;
+
+                _contextItemId = value;
+                _matchingItems = null;
+            }
+        }
 
         public string SearchQuery
         {
@@ -101,6 +123,14 @@ namespace TerrarianCompendium.Recipes
                 return false;
 
             return MatchesNavigation(entry) && HasMatchingProducingRecipe(itemId);
+        }
+
+        public bool IsContextItemAvailable(int itemId)
+        {
+            if (!_catalog.TryGet(itemId, out _))
+                return false;
+
+            return _recipeIndex.HasRecipeProducing(itemId) || _recipeIndex.GetRecipesUsing(itemId).Count > 0;
         }
 
         public bool HasFavoriteRecipe(int itemId)
@@ -161,10 +191,14 @@ namespace TerrarianCompendium.Recipes
 
         private IReadOnlyList<ItemCatalogEntry> BuildMatchingItems()
         {
+            HashSet<int> contextualResultItemIds = BuildContextualResultItemIds();
             var matches = new List<ItemCatalogEntry>();
 
             foreach (ItemCatalogEntry entry in _catalog.Items)
             {
+                if (contextualResultItemIds != null && !contextualResultItemIds.Contains(entry.Id))
+                    continue;
+
                 if (!MatchesNavigation(entry))
                     continue;
 
@@ -179,6 +213,34 @@ namespace TerrarianCompendium.Recipes
             }
 
             return new ReadOnlyCollection<ItemCatalogEntry>(matches);
+        }
+
+        private HashSet<int> BuildContextualResultItemIds()
+        {
+            if (!_contextItemId.HasValue)
+                return null;
+
+            IReadOnlyList<RecipeCatalogEntry> recipes = _recipeIndex.GetRecipesUsing(_contextItemId.Value);
+            var resultItemIds = new HashSet<int>();
+
+            foreach (RecipeCatalogEntry recipe in recipes)
+            {
+                if (_filterState.IsActive &&
+                    !RecipeFilterMatcher.Matches(
+                        recipe,
+                        _filterState,
+                        _checklistState,
+                        _journeyResearchState,
+                        _favoriteState,
+                        _craftingAvailabilityState))
+                {
+                    continue;
+                }
+
+                resultItemIds.Add(recipe.ResultItemId);
+            }
+
+            return resultItemIds;
         }
 
         private bool MatchesNavigation(ItemCatalogEntry entry)

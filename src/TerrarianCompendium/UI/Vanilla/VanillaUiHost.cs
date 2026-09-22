@@ -6,6 +6,7 @@ using Terraria.UI;
 using TerrariaModder.Core.Input;
 using TerrariaModder.Core.UI;
 using TerrariaModder.Core.UI.Widgets;
+using TerrarianCompendium.Localization;
 
 namespace TerrarianCompendium.UI.Vanilla
 {
@@ -19,6 +20,7 @@ namespace TerrarianCompendium.UI.Vanilla
     internal sealed class VanillaUiHost : IDisposable
     {
         private readonly string _keyInputBlockId;
+        private readonly CompendiumLocalization _localization;
         private readonly string _panelId;
         private readonly BrowserUiState _state;
         private readonly UserInterface _userInterface;
@@ -31,7 +33,7 @@ namespace TerrarianCompendium.UI.Vanilla
         private bool _keyInputBlockRegistered;
         private BrowserEscapeAction _pendingEscapeAction;
 
-        public VanillaUiHost(string panelId, Func<BrowserUiState> stateFactory)
+        public VanillaUiHost(string panelId, CompendiumLocalization localization, Func<BrowserUiState> stateFactory)
         {
             if (string.IsNullOrWhiteSpace(panelId))
                 throw new ArgumentException("Panel ID must not be empty.", nameof(panelId));
@@ -40,6 +42,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 throw new ArgumentNullException(nameof(stateFactory));
 
             _panelId = panelId;
+            _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             _keyInputBlockId = panelId + ".keyboard";
             UserInterface previousActiveInterface = UserInterface.ActiveInstance;
 
@@ -314,8 +317,10 @@ namespace TerrarianCompendium.UI.Vanilla
             try
             {
                 Tooltip.Clear();
+                SupplementalTooltip.Clear();
                 _userInterface.Draw(Main.spriteBatch, Main.gameTimeCache);
                 Tooltip.DrawDeferred();
+                SupplementalTooltip.DrawDeferred(_localization);
             }
             finally
             {

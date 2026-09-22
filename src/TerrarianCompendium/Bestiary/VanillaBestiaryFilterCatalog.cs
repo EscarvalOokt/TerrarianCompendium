@@ -107,34 +107,18 @@ namespace TerrarianCompendium.Bestiary
 
         public IReadOnlyList<int> OptionIds { get; }
 
-        public bool MatchesAny(NpcCatalogEntry catalogEntry, IReadOnlyCollection<int> activeFilterIds)
+        public bool Matches(NpcCatalogEntry catalogEntry, int filterId)
         {
             if (catalogEntry == null)
                 throw new ArgumentNullException(nameof(catalogEntry));
 
-            if (activeFilterIds == null)
-                throw new ArgumentNullException(nameof(activeFilterIds));
-
-            if (activeFilterIds.Count == 0)
-                return true;
-
-            BestiaryEntry entry = VanillaBestiaryNativeBridge.GetBestiaryEntry(catalogEntry);
-
-            foreach (int filterId in activeFilterIds)
+            if (!_optionsById.TryGetValue(filterId, out VanillaBestiaryFilterOption option))
             {
-                if (!_optionsById.TryGetValue(filterId, out VanillaBestiaryFilterOption option))
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(activeFilterIds),
-                        filterId,
-                        "Unknown Bestiary native filter ID.");
-                }
-
-                if (option.Matches(entry))
-                    return true;
+                throw new ArgumentOutOfRangeException(nameof(filterId), filterId, "Unknown Bestiary native filter ID.");
             }
 
-            return false;
+            BestiaryEntry entry = VanillaBestiaryNativeBridge.GetBestiaryEntry(catalogEntry);
+            return option.Matches(entry);
         }
 
         public bool TryGetOptionByDisplayNameKey(string displayNameKey, out VanillaBestiaryFilterOption option)

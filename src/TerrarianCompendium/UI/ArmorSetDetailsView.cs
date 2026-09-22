@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
 using TerrarianCompendium.Details;
+using TerrarianCompendium.Journey;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.Navigation;
 using TerrarianCompendium.UI.Vanilla;
@@ -28,6 +29,7 @@ namespace TerrarianCompendium.UI
         private readonly List<VanillaItemRelationButton> _bodyVariantButtons = new();
         private readonly List<VanillaItemRelationButton> _headVariantButtons = new();
         private readonly VanillaItemIcon _icon;
+        private readonly JourneyResearchState _journeyResearchState;
         private readonly List<VanillaItemRelationButton> _legVariantButtons = new();
         private readonly CompendiumLocalization _localization;
         private readonly ArmorSetDetailsModel _model;
@@ -40,11 +42,13 @@ namespace TerrarianCompendium.UI
         public ArmorSetDetailsView(
             ArmorSetDetailsModel model,
             BrowserNavigationState navigationState,
-            CompendiumLocalization localization)
+            CompendiumLocalization localization,
+            JourneyResearchState journeyResearchState = null)
         {
             _model = model ?? throw new ArgumentNullException(nameof(model));
             _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
+            _journeyResearchState = journeyResearchState;
             Width = StyleDimension.Fill;
             SetPadding(0f);
 
@@ -303,7 +307,7 @@ namespace TerrarianCompendium.UI
         {
             while (buttons.Count < count)
             {
-                var button = new VanillaItemRelationButton(NavigateToItem);
+                var button = new VanillaItemRelationButton(NavigateToItem, _journeyResearchState);
                 buttons.Add(button);
                 Append(button);
             }
@@ -326,7 +330,7 @@ namespace TerrarianCompendium.UI
         {
             while (_variantButtons.Count < count)
             {
-                var buttons = new VariantButtons(NavigateToItem);
+                var buttons = new VariantButtons(NavigateToItem, _journeyResearchState);
                 _variantButtons.Add(buttons);
                 Append(buttons.Head);
                 Append(buttons.Body);
@@ -560,13 +564,13 @@ namespace TerrarianCompendium.UI
                 IsMouseHovering);
         }
 
-        private sealed class VariantButtons(Action<int> clicked)
+        private sealed class VariantButtons(Action<int> clicked, JourneyResearchState journeyResearchState)
         {
-            public VanillaItemRelationButton Head { get; } = new(clicked);
+            public VanillaItemRelationButton Head { get; } = new(clicked, journeyResearchState);
 
-            public VanillaItemRelationButton Body { get; } = new(clicked);
+            public VanillaItemRelationButton Body { get; } = new(clicked, journeyResearchState);
 
-            public VanillaItemRelationButton Legs { get; } = new(clicked);
+            public VanillaItemRelationButton Legs { get; } = new(clicked, journeyResearchState);
 
             public void Bind(ArmorSetDetailsVariant variant)
             {
