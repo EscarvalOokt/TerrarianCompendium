@@ -2,7 +2,7 @@
 
 This document defines the accepted product architecture and implementation boundaries of Terrarian Compendium.
 
-It is an architecture specification, not an implementation plan. The current production browser has working Items, Armor Sets, Recipes, and Bestiary domains, shared Details, typed cross-domain navigation, Back/Forward history, contextual Item↔Recipe exploration with requirement-aware and collection-aware Recipe filtering, dedicated Item acquisition indices including potential merchant stock, native-compatible direct crafting, versioned persistent recipe identity, client-local recipe favorites, culture-aware vanilla Item text, project-owned English/Russian browser localization, and a stabilized compact retained-UI presentation.
+It is an architecture specification, not an implementation plan. The current production browser has working Items, Armor Sets, Recipes, Shimmer, Bestiary, and Angler domains, shared Details where applicable, typed cross-domain navigation, Back/Forward history, contextual Item↔Recipe and Item↔Shimmer exploration, dedicated Item acquisition indices including potential merchant stock, native-compatible direct crafting, versioned persistent recipe identity, client-local recipe favorites, culture-aware vanilla Item text, project-owned English/Russian browser localization, and a stabilized compact retained-UI presentation.
 
 ## Sources of truth
 
@@ -23,8 +23,10 @@ The current product scope is a vanilla Terraria compendium centered on:
 - item browsing, filtering, sorting, progress, and details;
 - functional vanilla armor-set browsing, set details, and Item↔Armor Set relations;
 - recipe-result browsing, recipe details, current craftability, direct crafting, requirement/collection filtering, and Item↔Recipe relations;
+- result-oriented Shimmer browsing with direct-transformation/decrafting variants, transformation conditions, filtering, Details, and Item↔Shimmer relations kept separate from ordinary Recipe craftability/execution;
 - local recipe favorites backed by a versioned persistent recipe identity;
 - vanilla NPC/loot browsing and Bestiary details;
+- Angler daily quest/progress browsing and reward reference backed by Terraria-owned quest state;
 - additional item relations that are explicitly researched and accepted for the current scope;
 - project-owned browser localization synchronized to the active Terraria culture, with English as the source/fallback locale and Russian as the current release translation.
 
@@ -35,7 +37,8 @@ The following are not required for the current scope:
 - shops, mining, catching, and other acquisition sources as planner nodes;
 - nearby/portable-storage material planning;
 - multiplayer/team planner or favorites synchronization;
-- Magic Storage and custom-content/provider ecosystems.
+- Magic Storage and custom-content/provider ecosystems;
+- project-owned Shimmer execution or crafting simulation.
 
 ## Current compatibility contract
 
@@ -54,7 +57,7 @@ Multiplayer/runtime ownership contracts:
 - Terrarian Compendium does not introduce a separate synchronization protocol for collection, favorites, navigation, filters, or other browser-owned state;
 - `CraftingAvailabilityState` is a local active-player runtime projection rather than persisted or project-networked state;
 - direct crafting performs project validation and delegates execution to Terraria's `CraftingRequests` path; Host & Play runtime acceptance covers inventory-only and currently open vanilla chest contexts for this target;
-- Terraria-owned Journey and Bestiary state is consumed through the native runtime contracts and is not duplicated into a parallel Terrarian Compendium persistence/network layer.
+- Terraria-owned Journey, Bestiary, and Angler quest/progress state is consumed through native runtime contracts and is not duplicated into a parallel Terrarian Compendium persistence/network layer.
 
 Merchant compatibility contract:
 
@@ -69,17 +72,19 @@ These boundaries are part of the current architecture. Expanding them requires a
 The current implementation provides the following architecture-relevant baseline:
 
 - product/package/project identity `Terrarian Compendium` / `terrarian-compendium` / `TerrarianCompendium` on .NET Framework 4.8, targeting Terraria 1.4.5.8 and TerrariaModder Core 0.4.1;
-- immutable content-lifetime Item, Armor Set, Recipe, NPC, acquisition, taxonomy, sorting, and persistent-recipe-identity data, replaced as complete snapshots when refresh is required;
+- immutable content-lifetime Item, Armor Set, Recipe, Shimmer transformation, NPC, Angler reward, acquisition, taxonomy, sorting, and persistent-recipe-identity data, replaced as complete snapshots when refresh is required;
 - per-character collection state with versioned sidecar persistence, controlled legacy migration, validated-backup recovery, discovery from supported player/storage sources, and optional Terraria-owned Journey integration;
 - a production Item Browser with independent navigation/search/taxonomy/completion/research/crafting/NPC-drop/merchant-source filters, eight taxonomy facets, deterministic sorting, localized Item text, and compact Item Details backed by immutable Details-only base stat metadata and shared icon/value/coin presentation;
 - dedicated immutable `WorldLootSourceIndex`, `OpenableItemLootIndex`, `FishingSourceIndex`, and `MerchantSourceIndex` relations consumed by Details/browser projections without changing collection discovery ownership;
 - bidirectional Openable Item relations, direct world-source relations for researched chest/pot/tree-shaking acquisition paths, Fishing relations that preserve separate vanilla rule variants with normalized rule conditions and stopper-derived reachability restrictions, and bidirectional potential Merchant↔Item stock relations with normalized sale variants and availability restrictions;
 - immutable `ArmorSetCatalog` / `ArmorSetIndex` preserving exact native variants and supporting Item↔Armor Set relations and Armor Set Details;
 - immutable `RecipeCatalog` / `RecipeIndex`, versioned `RecipePersistentKey` identity, session-owned current craftability, a global result-item Recipe catalog plus contextual Item-driven `Used in` projection, producing-variant Recipe Details, reusable direct crafting from Item/Recipe Details, requirement/collection/favorite filtering, and client-local persistent favorites;
-- immutable `NpcCatalog` / bidirectional `NpcLootIndex`, Terraria-owned encounter progress, Bestiary browsing/filtering/sorting including potential merchant-stock filtering, and NPC Details with static potential loot, native kill/banner statistics, plus merchant-stock projection where applicable;
-- a shared `BrowserNavigationState` with typed Item, Armor Set, Recipe-query, exact Recipe, NPC, and section-root destinations plus runtime Back/Forward history;
+- immutable `ShimmerTransformationCatalog` / `ShimmerTransformationIndex` with direct and recipe-backed decrafting variants, a global result-item Shimmer catalog plus contextual Item-driven exploration, result/variant filtering, and separate Shimmer Details without reusing ordinary Recipe craftability or persistent identity;
+- immutable `NpcCatalog` / bidirectional `NpcLootIndex`, Terraria-owned encounter progress, Bestiary browsing/filtering/sorting including banner-aware loot and potential merchant-stock filtering, and NPC Details with static potential loot, native kill/banner statistics, plus merchant-stock projection where applicable;
+- immutable `AnglerRewardCatalog` metadata plus session-owned `AnglerQuestState` refreshed through `VanillaAnglerQuestStateScanner` and exposed through revisioned `AnglerQuestModel` projections for current quest, current-player daily completion, lifetime quest count, milestones, and reward groups;
+- a shared `BrowserNavigationState` with typed Item, Armor Set, Recipe-query, exact Recipe, Shimmer-query, NPC, and section-root destinations plus runtime Back/Forward history;
 - optional vanilla Item-slot navigation gated by the client-side `Inventory Item Navigation` setting: fixed `Alt + Right Click` on explicitly supported inventory/storage/equipment/shop surfaces opens the ordinary Item destination through the same navigation owner and consumes the accepted native RMB gesture before `ItemSlot.Handle(...)` processing;
-- a shared `BrowserDetailsSurface` that hosts separate domain-specific Item, Armor Set, Recipe, and NPC projections rather than a universal Details model;
+- a shared `BrowserDetailsSurface` that hosts separate domain-specific Item, Armor Set, Recipe, Shimmer, and NPC projections rather than a universal Details model; the Angler section root uses the section surface directly and does not add an Angler-specific Details projection;
 - one shared Vanilla/Core UI host adapter for Terraria retained UI inside TerrariaModder-owned lifecycle, panel, input, tooltip, and top-level integration boundaries;
 - revision-based invalidation for mutable session/browser owners and deterministic projections, while static relations remain in dedicated immutable catalogs/indices;
 - project-owned player-facing browser text externalized through embedded locale resources, with `en-US` as the source/fallback locale, `ru-RU` as the current release translation, and culture changes exposed through a localization revision consumed by UI/model projections;
@@ -98,7 +103,7 @@ Its responsibilities include:
 - creating and retaining the project-owned localization service and synchronizing it with the active Terraria culture;
 - creating retained content-lifetime catalogs and indices;
 - creating world/character browser-session state;
-- creating browser-composition state such as Recipe and Bestiary filters;
+- creating browser-composition state such as Recipe, Shimmer, and Bestiary filters;
 - constructing domain-specific browser/detail models and views;
 - wiring the shared browser shell and navigation state;
 - disposing world/character state and UI composition at the appropriate lifecycle boundary.
@@ -120,6 +125,8 @@ Current examples include:
 - `RecipeCatalog`;
 - `RecipeIndex`;
 - `RecipePersistentKeyIndex`;
+- `ShimmerTransformationCatalog`;
+- `ShimmerTransformationIndex`;
 - `ArmorSetCatalog`;
 - `ArmorSetIndex`;
 - `NpcCatalog`;
@@ -128,6 +135,7 @@ Current examples include:
 - `OpenableItemLootIndex`;
 - `FishingSourceIndex`;
 - `MerchantSourceIndex`;
+- `AnglerRewardCatalog`;
 - immutable taxonomy/sorting/details metadata;
 - immutable station-display mappings derived from the current catalogs.
 
@@ -142,13 +150,14 @@ Current session-owned examples include:
 - `ChecklistState`;
 - optional `JourneyResearchState`;
 - `CraftingAvailabilityState`;
+- `AnglerQuestState` together with its Terraria-facing refresh scanner;
 - discovery scanners and persistence-session bookkeeping.
 
 Client-local mutable state includes `RecipeFavoriteState`. It is retained independently from per-character collection/session state, stores `RecipePersistentKey` identities rather than runtime recipe indices, and exposes revision-based invalidation to its consumers.
 
-Current browser-composition state includes `RecipeFilterState`, which owns Recipe filtering criteria and revision state independently of browser destination/history identity, and `BestiaryFilterState`, which owns one native Bestiary criterion, one loot-aware drop criterion, encounter filtering, the project-owned merchant-stock filter, and revision state independently of NPC destination/history identity. Native and loot-aware criteria are mutually exclusive within their own groups but can be active together. `BestiaryBrowserModel` separately owns search text, sort mode, and sort direction. Recipe result-item category navigation is owned separately by `RecipeBrowserModel` through its own `ChecklistNavigationFilter`; it is independent from the Item Browser category state, `RecipeFilterState`, and browser history identity. The contextual Recipe Item is carried by Recipe-query/exact-Recipe destinations and synchronized into the Recipe Browser as a derived catalog context; it is not another `RecipeFilterState` criterion or category-navigation owner.
+Current browser-composition state includes `RecipeFilterState`, which owns Recipe filtering criteria and revision state independently of browser destination/history identity; `ShimmerFilterState`, which owns result-level collection/research criteria and variant-level transformation/progression criteria independently of Shimmer query/history identity; and `BestiaryFilterState`, which owns one native Bestiary criterion, one loot-aware drop criterion, encounter filtering, the project-owned merchant-stock filter, and revision state independently of NPC destination/history identity. Native and loot-aware Bestiary criteria are mutually exclusive within their own groups but can be active together. `BestiaryBrowserModel` separately owns search text, sort mode, and sort direction. Recipe and Shimmer result-item category navigation are owned separately by their domain browser models through independent `ChecklistNavigationFilter` state; they do not reuse the Item Browser category state and are not browser history identity. Contextual Recipe/Shimmer Items are carried by their typed query destinations and synchronized into the corresponding browser model as derived catalog context rather than as another filter criterion or category-navigation owner.
 
-Models and views consume these owners; they do not become alternative owners of the same state.
+Models and views consume these owners; they do not become alternative owners of the same state. `AnglerQuestModel` is a deterministic projection over the session-owned Angler state and immutable reward catalog rather than a second quest/progress owner.
 
 Revision-based invalidation is the preferred current pattern for mutable state consumed by deterministic projections.
 
@@ -375,6 +384,43 @@ Navigation from Recipe Details is available for result Items, ordinary ingredien
 Recipe result-item category navigation reuses the existing Item category/taxonomy semantics and applies them to the result Item. Items and Recipes keep independent category-navigation state. In contextual Recipes, the contextual Item is presented as an enclosing scope above that taxonomy chain without becoming a taxonomy node. Ordinary upward navigation moves through taxonomy parents and exits the Item context from its top level; the supported Alt-modified upward action returns directly to the global Recipes root. Category selection remains a Recipe-browser scope and is not folded into `RecipeFilterState`, `BrowserDestination`, browser history identity, or concrete-recipe matching.
 
 
+## Shimmer architecture
+
+### Catalog, variants, and relations
+
+Shimmer remains a domain-specific subsystem rather than an extension of ordinary `RecipeCatalogEntry`, recipe environment requirements, `CraftingAvailabilityState`, or `RecipePersistentKey`. Direct Item→Item transformations and recipe-backed decrafting share the Shimmer domain but keep their distinct native semantics.
+
+`ShimmerTransformationCatalog` retains the accepted input-oriented transformation identities derived from the target Terraria contracts. `ShimmerTransformationIndex` expands those entries into immutable `ShimmerTransformationVariant` values and owns the static bidirectional relations:
+
+- result Item → producing Shimmer variants;
+- input Item → using Shimmer variants.
+
+The index contains all confirmed potential result relations for the supported transformation scope, including moon-phase-dependent direct outputs and distinct Crimson/Corruption decrafting variants. Current world evil, moon phase, or progression state does not prune this static universe. Runtime progression state is evaluated separately where current `Locked` / `Unlocked` presentation or filtering requires it.
+
+A decrafting variant may reference an ordinary runtime recipe index for explanation/navigation and reverse-output semantics. That reference does not make the Shimmer operation an ordinary recipe, does not add it to ordinary craftability/direct-crafting paths, and does not extend `RecipePersistentKey`.
+
+### Filtering and browser projection
+
+The Shimmer section root is result-oriented. A result Item appears once when it has at least one producing Shimmer variant that survives the active Shimmer filters. A contextual Shimmer query is valid for an Item that participates in either a producing or using Shimmer relation; when the context Item is used as input, the catalog is narrowed to result Items produced by its matching variants.
+
+`ShimmerFilterState` keeps four independent criteria groups:
+
+- result-item collection state (`Missing` / `Found`, with no selection meaning all);
+- optional Journey research state (`Unresearched` / `Researched`, with no selection meaning all);
+- transformation kind (`Transform` / `Decraft`, with no selection meaning all);
+- current progression status (`Unlocked` / `Locked`, with no selection meaning all).
+
+Collection and research are result-item predicates. Transformation kind and progression status are concrete-variant predicates. When variant-level criteria are active, one producing variant must satisfy all of them; separate variants do not combine partial matches. Search and result-item category navigation remain separate browser constraints and do not become `ShimmerFilterState` criteria or destination identity.
+
+### Shimmer Details and conditions
+
+A Shimmer query uses the contextual Item as the Details identity. When that Item has producing variants, Shimmer Details presents the result Item and the matching producing variants; an Item that is only an input may own a contextual result catalog without producing Shimmer Details variants. Variant cycling is presentation state and does not create a separate navigation destination.
+
+Each variant preserves its input, output set, transformation kind, progression requirement, optional world-evil condition, optional moon-phase condition, underlying ordinary recipe reference for decrafting, and alchemy metadata where applicable. Player-facing Details translate those metadata into observable conditions such as boss progression, Crimson/Corruption world requirement, or moon phase rather than exposing raw internal identifiers. Potential variants remain part of the catalog even when those conditions are not satisfied in the current runtime.
+
+Shimmer Details and Item Details navigate through the shared `BrowserNavigationState`: Items with producing or using Shimmer relations can open a contextual Shimmer query, Shimmer Item references open ordinary Item destinations, and recipe-backed decrafting variants may navigate to their underlying ordinary Recipe destination. No project-owned Shimmer execution action is part of this architecture.
+
+
 ## Bestiary architecture
 
 ### Catalog, identity, and static loot relations
@@ -389,7 +435,7 @@ The static relation layer is intentionally distinct from both current Vanilla Be
 
 Terraria remains the owner of Bestiary encounter progress. Terrarian Compendium reads finalized entry-level observation from the native Bestiary provider and does not persist or network a duplicate encounter state. Encounter state is used for silhouettes, overall/filtered progress, Encountered/Unknown filtering, and revision/invalidation of the browser projection; it does not gate finalized names, static potential loot, or Item→NPC source relations.
 
-`BestiaryFilterState` owns four independent browser-filter concerns: one native Bestiary criterion, one loot-aware drop criterion, Encounter filtering, and the project-owned `Has stock` merchant filter. Native criteria are derived from finalized Bestiary filter registrations rather than from a duplicated hardcoded biome/event table. The loot-aware group is project-owned and exposes `All`, `Has drops`, `Has missing drops`, and, when Journey research state is available, `Has unresearched drops`; only one value can be active inside each native/drop criterion group, while the two groups may be combined. `Has missing drops` reads collection state and `Has unresearched drops` reads Journey research state through their existing owners rather than duplicating that state in Bestiary.
+`BestiaryFilterState` owns four independent browser-filter concerns: one native Bestiary criterion, one loot-aware drop criterion, Encounter filtering, and the project-owned `Has stock` merchant filter. Native criteria are derived from finalized Bestiary filter registrations rather than from a duplicated hardcoded biome/event table. The loot-aware group is project-owned and exposes `All`, `Has drops`, `Has missing drops`, and, when Journey research state is available, `Has unresearched drops`; only one value can be active inside each native/drop criterion group, while the two groups may be combined. Loot-aware matching treats ordinary static `NpcLootIndex` relations and the NPC's Terraria-owned Banner Item as separate collectible-item sources: `Has drops` matches either source, `Has missing drops` evaluates both through `ChecklistState`, and `Has unresearched drops` evaluates both through `JourneyResearchState`. Banner identity does not become an `NpcLootRelation` and is not inserted into `NpcLootIndex`.
 
 `BestiaryBrowserModel` owns search text, sort mode, and sort direction and combines those values with filter-state revisions, collection/research revisions when relevant, and native observation changes to rebuild a deterministic visible-entry projection. Search, the selected native criterion, and the selected drop criterion define the Bestiary scope totals; Encounter and `Has stock` narrow the visible projection afterward. `Has stock` is backed by `MerchantSourceIndex.ContainsMerchant(...)` and represents potential stock rather than current shop availability.
 
@@ -414,13 +460,14 @@ Current destination kinds are:
 - Armor Set;
 - Recipe query;
 - Recipe;
+- Shimmer query;
 - NPC.
 
-Item destinations belong to the Items section. Armor Set destinations belong to the Armor Sets section. Recipe-query and Recipe destinations belong to the Recipes section. NPC destinations belong to the Bestiary section. A Recipe query carries the contextual Item ID used by the Recipes catalog. Recipe destinations reached from such a query preserve that query Item context.
+Item destinations belong to the Items section. Armor Set destinations belong to the Armor Sets section. Recipe-query and Recipe destinations belong to the Recipes section. Shimmer-query destinations belong to the Shimmer section. NPC destinations belong to the Bestiary section. Angler uses only the ordinary Angler section-root destination; reward and quest Item links navigate to ordinary Item destinations. A Recipe query carries the contextual Item ID used by the Recipes catalog, and a Shimmer query carries the contextual Item ID used by the Shimmer catalog. Recipe destinations reached from a Recipe query preserve that Recipe query Item context.
 
 The navigation owner maintains runtime Back/Forward history plus a revision used by consumers such as section views and the shared Details surface. Ordinary navigation appends a destination and discards an obsolete Forward branch after navigating from a historical position. `ReplaceCurrent` normalizes the current destination without creating a normal history entry and coalesces equal neighboring entries.
 
-Browser history is runtime UI state and is not a persistent identity/storage mechanism. Recipe filters and Recipe result-item category scope remain separate from destination/history identity.
+Browser history is runtime UI state and is not a persistent identity/storage mechanism. Recipe/Shimmer filters and their result-item category scopes remain separate from destination/history identity.
 
 Catalog-entry repeat-click deselection is an interaction policy layered above ordinary navigation. Browser catalog views use the shared `BrowserSelectionNavigation` helper so selecting the currently active entry returns to that section root, while ordinary `BrowserNavigationState.Navigate()` calls — including cross-domain navigation from Details — keep normal navigation semantics.
 
@@ -437,6 +484,8 @@ Cross-domain navigation uses this same owner:
 - Item Details can open a related Armor Set destination;
 - Armor Set Details can navigate from set members to Item destinations;
 - Item Details can open a contextual Recipe query for an Item that has producing or using Recipe relations; the Recipes catalog owns the corresponding `Used in` exploration rather than Item Details;
+- Item Details can open a contextual Shimmer query for an Item that has producing or using Shimmer relations; the Shimmer catalog owns result-oriented/contextual transformation exploration rather than Item Details;
+- Shimmer Details can navigate from transformation inputs/outputs to ordinary Item destinations and from recipe-backed decrafting variants to their underlying Recipe destination;
 - crafting-station Items can navigate to the Recipes root while setting the shared station requirement filter;
 - Recipe Details can navigate from result/ingredient/group-alternative Items to Item destinations;
 - Recipe Details can navigate from an Item-backed station requirement to the representative station Item;
@@ -448,9 +497,9 @@ Cross-domain navigation uses this same owner:
 
 Section views must not directly own or open the shared Details surface. They navigate through the shared navigation state.
 
-`BrowserDetailsSurface` is the shared right-side host. Domain-specific Item, Armor Set, Recipe, and NPC detail views remain separate projections instead of being collapsed into a universal details model.
+`BrowserDetailsSurface` is the shared right-side host. Domain-specific Item, Armor Set, Recipe, Shimmer, and NPC detail views remain separate projections instead of being collapsed into a universal details model. The Angler section root intentionally does not use this host: its quest/progress and reward reference are presented as one full-width section view, while navigation from any Angler Item card opens the ordinary Item destination and restores the normal Details surface through existing section navigation.
 
-The shared surface owns host-level presentation concerns such as the Details frame, header, scroll state, navigation-driven scroll reset, and the overlay host used by Details-level transient surfaces such as the direct-crafting and merchant-stock-conditions popovers. Domain views own domain-specific content rendering while delegating transient-surface state/close handling through the shared surface.
+The shared surface owns host-level presentation concerns such as the Details frame, header, scroll state, navigation-driven scroll reset, and the overlay host used by Details-level transient surfaces such as the direct-crafting and merchant-stock-conditions popovers. Domain views own domain-specific content rendering while delegating transient-surface state/close handling through the shared surface. Section-root layout may omit the Details host when the active domain does not define a Details projection, as Angler currently does.
 
 ## UI foundation and hosting boundary
 
@@ -494,7 +543,7 @@ Presentation changes may evolve control composition, spacing, icon framing, scro
 
 - Per-character collection progress remains separate from client-local state. The sidecar identity includes the normalized active player save path and `IsCloudSave`; Local and Cloud representations therefore resolve to different project identities. Automatic migration or merge across changed identities is not guaranteed. Its sidecar persistence preserves a validated backup when rewriting a primary file recovered from that backup, while ordinary successful saves retain normal backup rotation. If an existing backup is needed for recovery and cannot be read, loading fails and does not authorize an automatic rewrite that could replace that backup.
 - Recipe favorites are client-local and persist versioned `RecipePersistentKey` values separately from per-character collection progress. Valid unresolved keys are preserved rather than heuristically remapped. Duplicate/order normalization and validated-backup recovery are storage concerns; a recovery rewrite preserves the verified backup rather than rotating the corrupt primary over it. If an existing backup is needed for recovery and cannot be read, loading fails and does not authorize an automatic rewrite. Unsupported schema versions disable writes so newer data is not destructively overwritten. No migration from other mods is part of this favorites contract.
-- Terraria-native Journey, crafting-availability, and Bestiary state is not duplicated into project persistence without a confirmed need.
+- Terraria-native Journey, crafting-availability, Bestiary, and Angler quest/progress state is not duplicated into project persistence without a confirmed need.
 - The supported product-rebrand compatibility path is the controlled migration from legacy `item-checklist` collection progress to the current `terrarian-compendium` root.
 
 ## Deferred architecture boundary

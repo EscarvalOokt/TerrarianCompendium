@@ -15,7 +15,6 @@ namespace TerrarianCompendium.UI
         private const int HeaderHorizontalPadding = 6;
         private const int BodyPadding = 6;
         private const int TextHeight = 16;
-
         private readonly ArmorSetDetailsView _armorSetDetailsView;
         private readonly MessageElement _armorSetUnavailableState;
 
@@ -28,6 +27,8 @@ namespace TerrarianCompendium.UI
         private readonly RecipeDetailsView _recipeDetailsView;
         private readonly MessageElement _recipeUnavailableState;
         private readonly VanillaScrollRegion _scroll;
+        private readonly ShimmerDetailsView _shimmerDetailsView;
+        private readonly MessageElement _shimmerUnavailableState;
         private UIElement _activeContent;
         private bool _isActive;
         private long _observedLocalizationRevision = -1;
@@ -38,6 +39,7 @@ namespace TerrarianCompendium.UI
             ItemDetailsView itemDetailsView,
             ArmorSetDetailsView armorSetDetailsView,
             RecipeDetailsView recipeDetailsView,
+            ShimmerDetailsView shimmerDetailsView,
             NpcDetailsView npcDetailsView,
             CompendiumLocalization localization)
         {
@@ -45,6 +47,7 @@ namespace TerrarianCompendium.UI
             _itemDetailsView = itemDetailsView ?? throw new ArgumentNullException(nameof(itemDetailsView));
             _armorSetDetailsView = armorSetDetailsView;
             _recipeDetailsView = recipeDetailsView;
+            _shimmerDetailsView = shimmerDetailsView;
             _npcDetailsView = npcDetailsView;
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             SetPadding(0f);
@@ -61,6 +64,7 @@ namespace TerrarianCompendium.UI
             _emptyState = new MessageElement(string.Empty);
             _armorSetUnavailableState = new MessageElement(string.Empty);
             _recipeUnavailableState = new MessageElement(string.Empty);
+            _shimmerUnavailableState = new MessageElement(string.Empty);
             _npcUnavailableState = new MessageElement(string.Empty);
 
             _itemDetailsView.AttachPopoverHost(this);
@@ -174,6 +178,8 @@ namespace TerrarianCompendium.UI
             _armorSetUnavailableState.SetMessage(
                 _localization.Get(CompendiumTextKeys.Browser.ArmorSetDetailsUnavailable));
             _recipeUnavailableState.SetMessage(_localization.Get(CompendiumTextKeys.Browser.RecipeDetailsUnavailable));
+            _shimmerUnavailableState.SetMessage(
+                _localization.Get(CompendiumTextKeys.Browser.ShimmerDetailsUnavailable));
             _npcUnavailableState.SetMessage(_localization.Get(CompendiumTextKeys.Browser.NpcDetailsUnavailable));
             Recalculate();
         }
@@ -241,6 +247,18 @@ namespace TerrarianCompendium.UI
                     SetActiveContent(_recipeDetailsView);
                 }
             }
+            else if (destination.IsShimmerQuery)
+            {
+                if (_shimmerDetailsView == null)
+                {
+                    SetActiveContent(_shimmerUnavailableState);
+                }
+                else
+                {
+                    _shimmerDetailsView.ShowQuery(destination.ShimmerQueryItemId);
+                    SetActiveContent(_shimmerDetailsView);
+                }
+            }
             else if (destination.IsNpc)
             {
                 if (_npcDetailsView == null)
@@ -295,6 +313,8 @@ namespace TerrarianCompendium.UI
                 contentHeight = _armorSetDetailsView.ContentHeight;
             else if (ReferenceEquals(_activeContent, _recipeDetailsView))
                 contentHeight = _recipeDetailsView.ContentHeight;
+            else if (ReferenceEquals(_activeContent, _shimmerDetailsView))
+                contentHeight = _shimmerDetailsView.ContentHeight;
             else if (ReferenceEquals(_activeContent, _npcDetailsView))
                 contentHeight = _npcDetailsView.ContentHeight;
             else

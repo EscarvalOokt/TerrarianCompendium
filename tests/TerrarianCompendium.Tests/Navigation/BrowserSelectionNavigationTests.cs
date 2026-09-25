@@ -143,6 +143,58 @@ namespace TerrarianCompendium.Tests.Navigation
             Assert.That(BrowserSelectionNavigation.IsRecipeResultSelected(destination, 456), Is.False);
         }
 
+        [Test]
+        public void ToggleShimmerResult_FromShimmerRoot_SelectsResult()
+        {
+            var state = new BrowserNavigationState();
+            state.Navigate(BrowserDestination.ForSection(BrowserSection.Shimmer));
+
+            bool changed = BrowserSelectionNavigation.ToggleShimmerResult(state, 123);
+
+            Assert.That(changed, Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForShimmerQuery(123)));
+            Assert.That(BrowserSelectionNavigation.IsShimmerResultSelected(state.CurrentDestination, 123), Is.True);
+        }
+
+        [Test]
+        public void ToggleShimmerResult_SelectedResult_DeselectsToShimmerRoot()
+        {
+            var state = new BrowserNavigationState();
+            state.Navigate(BrowserDestination.ForShimmerQuery(123));
+
+            BrowserSelectionNavigation.ToggleShimmerResult(state, 123);
+
+            Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForSection(BrowserSection.Shimmer)));
+            Assert.That(BrowserSelectionNavigation.IsShimmerResultSelected(state.CurrentDestination, 123), Is.False);
+        }
+
+        [Test]
+        public void ToggleShimmerResult_DifferentSelection_SelectsClickedResult()
+        {
+            var state = new BrowserNavigationState();
+            state.Navigate(BrowserDestination.ForShimmerQuery(123));
+
+            BrowserSelectionNavigation.ToggleShimmerResult(state, 456);
+
+            Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForShimmerQuery(456)));
+        }
+
+        [Test]
+        public void ToggleShimmerResult_SelectThenDeselect_PreservesNormalBackForwardHistory()
+        {
+            var state = new BrowserNavigationState();
+            state.Navigate(BrowserDestination.ForSection(BrowserSection.Shimmer));
+
+            BrowserSelectionNavigation.ToggleShimmerResult(state, 123);
+            BrowserSelectionNavigation.ToggleShimmerResult(state, 123);
+
+            Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForSection(BrowserSection.Shimmer)));
+            Assert.That(state.GoBack(), Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForShimmerQuery(123)));
+            Assert.That(state.GoForward(), Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForSection(BrowserSection.Shimmer)));
+        }
+
         [TestCase(25)]
         [TestCase(0)]
         [TestCase(-25)]

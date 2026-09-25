@@ -53,6 +53,7 @@ namespace TerrarianCompendium.UI
         private readonly List<NpcRelationButton> _purchasableButtons = new();
         private readonly RecipeFilterState _recipeFilterState;
         private readonly ResearchStatusIndicator _researchIndicator;
+        private readonly VanillaIconButton _shimmerButton;
         private readonly List<VanillaIconValueElement> _statElements = new();
         private readonly VanillaIconButton _stationRecipesButton;
         private readonly VanillaCoinValueElement _valueElement;
@@ -99,6 +100,16 @@ namespace TerrarianCompendium.UI
                 NavigateToCraftingRecipes);
             Append(_craftingRecipesButton);
 
+            _shimmerButton = new VanillaIconButton(
+                bounds => AsyncItemIconRenderer.Draw(
+                    ItemID.BottomlessShimmerBucket,
+                    bounds.X,
+                    bounds.Y,
+                    bounds.Width,
+                    bounds.Height),
+                NavigateToShimmerQuery);
+            Append(_shimmerButton);
+
             _craftButton = new DirectCraftButton(
                 directCraftingService,
                 itemTextIndex ?? throw new ArgumentNullException(nameof(itemTextIndex)),
@@ -120,6 +131,7 @@ namespace TerrarianCompendium.UI
             HideUnusedStatElements(0);
             HideResearchIndicator();
             HideCraftingRecipesButton();
+            HideShimmerButton();
             HideCraftButton();
             HideStationRecipesButton();
         }
@@ -165,6 +177,7 @@ namespace TerrarianCompendium.UI
             HideUnusedStatElements(0);
             HideResearchIndicator();
             HideCraftingRecipesButton();
+            HideShimmerButton();
             HideCraftButton();
             HideStationRecipesButton();
             HideUnusedArmorSetButtons(0);
@@ -282,6 +295,13 @@ namespace TerrarianCompendium.UI
                 cursor += RelationTopGap + CraftingActionSize;
             }
 
+            if (projection.HasShimmerRelations)
+            {
+                AddGroupGap(ref cursor, ref hasPreviousGroup);
+                DrawGroupLabel(_localization.Get(CompendiumTextKeys.ItemDetails.ShimmerSection), x, width, ref cursor);
+                cursor += RelationTopGap + CraftingActionSize;
+            }
+
             if (projection.DroppedByNpcSources.Count > 0)
             {
                 AddGroupGap(ref cursor, ref hasPreviousGroup);
@@ -332,6 +352,7 @@ namespace TerrarianCompendium.UI
 
             _localizationRevision = _localization.Revision;
             _stationRecipesButton.TooltipText = _localization.Get(CompendiumTextKeys.ItemDetails.StationRecipesTooltip);
+            _shimmerButton.TooltipText = _localization.Get(CompendiumTextKeys.ItemDetails.ShimmerTooltip);
 
             foreach (TextLabelElement separator in _fishingOrSeparators)
                 separator.Text = _localization.Get(CompendiumTextKeys.Common.Or);
@@ -524,6 +545,21 @@ namespace TerrarianCompendium.UI
             {
                 HideCraftingRecipesButton();
                 HideCraftButton();
+            }
+
+            if (_projection.HasShimmerRelations)
+            {
+                AddGroupGap(ref sourceCursor, ref hasPreviousSourceGroup);
+                sourceCursor += RowHeight + RelationTopGap;
+                _shimmerButton.Left.Set(ContentPadding, 0f);
+                _shimmerButton.Top.Set(sourceCursor, 0f);
+                _shimmerButton.Width.Set(CraftingActionSize, 0f);
+                _shimmerButton.Height.Set(CraftingActionSize, 0f);
+                sourceCursor += CraftingActionSize;
+            }
+            else
+            {
+                HideShimmerButton();
             }
 
             if (_projection.DroppedByNpcSources.Count > 0)
@@ -823,6 +859,14 @@ namespace TerrarianCompendium.UI
             _navigationState.Navigate(BrowserDestination.ForRecipeQuery(_projection.ItemId));
         }
 
+        private void NavigateToShimmerQuery()
+        {
+            if (_projection == null || !_projection.ShimmerDataAvailable || !_projection.HasShimmerRelations)
+                return;
+
+            _navigationState.Navigate(BrowserDestination.ForShimmerQuery(_projection.ItemId));
+        }
+
         private void NavigateToStationRecipes()
         {
             int? requiredTileId = _projection?.CraftingStationRequiredTileId;
@@ -988,6 +1032,12 @@ namespace TerrarianCompendium.UI
             _craftingRecipesButton.Height.Set(0f, 0f);
         }
 
+        private void HideShimmerButton()
+        {
+            _shimmerButton.Width.Set(0f, 0f);
+            _shimmerButton.Height.Set(0f, 0f);
+        }
+
         private void HideCraftButton()
         {
             _craftButton.Clear();
@@ -1038,6 +1088,7 @@ namespace TerrarianCompendium.UI
         private static bool HasSourcesSection(ItemDetailsProjection projection)
         {
             return projection.HasRecipeRelations ||
+                   projection.HasShimmerRelations ||
                    projection.DroppedByNpcSources.Count > 0 ||
                    projection.PurchasableFromMerchants.Count > 0 ||
                    projection.WorldSources.Count > 0 ||
@@ -1062,6 +1113,10 @@ namespace TerrarianCompendium.UI
             AddGroupHeight(
                 ref height,
                 projection.HasRecipeRelations ? RowHeight + RelationTopGap + CraftingActionSize : 0,
+                ref hasGroup);
+            AddGroupHeight(
+                ref height,
+                projection.HasShimmerRelations ? RowHeight + RelationTopGap + CraftingActionSize : 0,
                 ref hasGroup);
             AddGroupHeight(
                 ref height,

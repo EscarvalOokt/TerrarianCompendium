@@ -93,29 +93,35 @@ namespace TerrarianCompendium.Tests.Bestiary
         }
 
         [Test]
-        public void HasDrops_ReturnsOnlyNpcsWithStaticLootRelations()
+        public void HasDrops_MatchesStaticLootOrBannerItem()
         {
-            NpcCatalog catalog = CreateCatalog((10, 0), (20, 1), (30, 2));
+            NpcCatalog catalog = CreateCatalog((10, 0), (20, 1), (30, 2), (40, 3));
             var filterState = new BestiaryFilterState(Array.Empty<int>());
             var lootIndex = NpcLootIndex.Create(
                 catalog,
                 [
                     new NpcLootRelation(10, 100, 1, 1, 0.5f),
-                    new NpcLootRelation(20, 200, 1, 1, 0.5f)
+                    new NpcLootRelation(30, 300, 1, 1, 0.5f)
                 ]);
             BestiaryBrowserModel model = CreateModel(
                 catalog,
                 filterState,
                 CreateEncounteredStateMap(catalog),
-                npcLootIndex: lootIndex);
+                npcLootIndex: lootIndex,
+                bannerItemProvider: entry => entry.NetId switch
+                {
+                    20 => 200,
+                    30 => 400,
+                    _ => null
+                });
 
             Assert.That(model.LootAwareFiltersAvailable, Is.True);
 
             filterState.DropCriterion = BestiaryFilterCriterion.HasDrops;
             Assert.That(model.SynchronizeState(), Is.True);
 
-            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([10, 20]));
-            Assert.That(model.ScopeTotalCount, Is.EqualTo(2));
+            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([10, 20, 30]));
+            Assert.That(model.ScopeTotalCount, Is.EqualTo(3));
         }
 
         [Test]
@@ -154,6 +160,112 @@ namespace TerrarianCompendium.Tests.Bestiary
             Assert.That(GetNetIds(model.VisibleEntries), Is.Empty);
             Assert.That(model.SynchronizeState(), Is.False);
             Assert.That(model.Revision, Is.EqualTo(revision));
+        }
+
+        [Test]
+        public void HasMissingDrops_MatchesMissingLootOrBannerAndRefreshesOnChecklistRevision()
+        {
+            NpcCatalog catalog = CreateCatalog((10, 0), (20, 1), (30, 2));
+            var filterState = new BestiaryFilterState(Array.Empty<int>());
+            ChecklistState checklistState = CreateChecklistState(100, 200, 300, 400, 500, 600);
+            Assert.That(checklistState.MarkFound(100), Is.True);
+            Assert.That(checklistState.MarkFound(400), Is.True);
+            Assert.That(checklistState.MarkFound(500), Is.True);
+            Assert.That(checklistState.MarkFound(600), Is.True);
+            var lootIndex = NpcLootIndex.Create(
+                catalog,
+                [
+                    new NpcLootRelation(10, 100, 1, 1, 0.5f),
+                    new NpcLootRelation(20, 300, 1, 1, 0.5f),
+                    new NpcLootRelation(30, 500, 1, 1, 0.5f)
+                ]);
+            BestiaryBrowserModel model = CreateModel(
+                catalog,
+                filterState,
+                CreateEncounteredStateMap(catalog),
+                checklistState: checklistState,
+                npcLootIndex: lootIndex,
+                bannerItemProvider: entry => entry.NetId switch
+                {
+                    10 => 200,
+                    20 => 400,
+                    30 => 600,
+                    _ => null
+                });
+
+            filterState.DropCriterion = BestiaryFilterCriterion.HasMissingDrops;
+            Assert.That(model.SynchronizeState(), Is.True);
+            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([10, 20]));
+
+            Assert.That(checklistState.MarkFound(200), Is.True);
+            Assert.That(model.SynchronizeState(), Is.True);
+            Assert.That(filterState.DropCriterion, Is.EqualTo(BestiaryFilterCriterion.HasMissingDrops));
+            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([20]));
+
+            Assert.That(checklistState.MarkFound(300), Is.True);
+            Assert.That(model.SynchronizeState(), Is.True);
+            Assert.That(GetNetIds(model.VisibleEntries), Is.Empty);
+        }
+
+        [Test]
+        public void HasUnresearchedDrops_MatchesResearchableIncompleteLootOrBanner()
+        {
+            NpcCatalog catalog = CreateCatalog((10, 0), (20, 1), (30, 2), (40, 3));
+            var filterState = new BestiaryFilterState(Array.Empty<int>());
+            var lootIndex = NpcLootIndex.Create(
+                catalog,
+                [
+                    new NpcLootRelation(30, 300, 1, 1, 0.5f),
+                    new NpcLootRelation(40, 500, 1, 1, 0.5f)
+                ]);
+            var researchState = new JourneyResearchState(
+            [
+                new JourneyResearchDefinition(100, 100, 5, hasSharedResearchIdentity: false),
+                new JourneyResearchDefinition(300, 300, 5, hasSharedResearchIdentity: false),
+                new JourneyResearchDefinition(400, 400, 5, hasSharedResearchIdentity: false),
+                new JourneyResearchDefinition(500, 500, 5, hasSharedResearchIdentity: false),
+                new JourneyResearchDefinition(600, 600, 5, hasSharedResearchIdentity: false)
+            ]);
+            Assert.That(
+                researchState.ReplaceProgressSnapshot(
+                [
+                    new KeyValuePair<int, int>(100, 2),
+                    new KeyValuePair<int, int>(400, 5),
+                    new KeyValuePair<int, int>(500, 5)
+                ]),
+                Is.True);
+            BestiaryBrowserModel model = CreateModel(
+                catalog,
+                filterState,
+                CreateEncounteredStateMap(catalog),
+                npcLootIndex: lootIndex,
+                journeyResearchState: researchState,
+                bannerItemProvider: entry => entry.NetId switch
+                {
+                    10 => 100,
+                    20 => 200,
+                    30 => 400,
+                    40 => 600,
+                    _ => null
+                });
+
+            filterState.DropCriterion = BestiaryFilterCriterion.HasUnresearchedDrops;
+            Assert.That(model.SynchronizeState(), Is.True);
+            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([10, 30, 40]));
+
+            Assert.That(
+                researchState.ReplaceProgressSnapshot(
+                [
+                    new KeyValuePair<int, int>(100, 5),
+                    new KeyValuePair<int, int>(300, 5),
+                    new KeyValuePair<int, int>(400, 5),
+                    new KeyValuePair<int, int>(500, 5),
+                    new KeyValuePair<int, int>(600, 5)
+                ]),
+                Is.True);
+            Assert.That(model.SynchronizeState(), Is.True);
+            Assert.That(filterState.DropCriterion, Is.EqualTo(BestiaryFilterCriterion.HasUnresearchedDrops));
+            Assert.That(GetNetIds(model.VisibleEntries), Is.Empty);
         }
 
         [Test]
@@ -224,7 +336,8 @@ namespace TerrarianCompendium.Tests.Bestiary
                 catalog,
                 filterState,
                 CreateEncounteredStateMap(catalog),
-                npcLootIndex: lootIndex);
+                npcLootIndex: lootIndex,
+                bannerItemProvider: entry => entry.NetId == 20 ? 200 : null);
 
             Assert.That(model.LootAwareFiltersAvailable, Is.True);
             Assert.That(model.UnresearchedDropsFilterAvailable, Is.False);
@@ -243,7 +356,11 @@ namespace TerrarianCompendium.Tests.Bestiary
                 DropCriterion = BestiaryFilterCriterion.HasMissingDrops
             };
 
-            BestiaryBrowserModel model = CreateModel(catalog, filterState, CreateEncounteredStateMap(catalog));
+            BestiaryBrowserModel model = CreateModel(
+                catalog,
+                filterState,
+                CreateEncounteredStateMap(catalog),
+                bannerItemProvider: entry => entry.NetId == 20 ? 200 : null);
 
             Assert.That(model.LootAwareFiltersAvailable, Is.False);
             Assert.That(model.UnresearchedDropsFilterAvailable, Is.False);
@@ -255,40 +372,53 @@ namespace TerrarianCompendium.Tests.Bestiary
         [Test]
         public void DropCriterion_DefinesScopeBeforeEncounterAndMerchantFilters()
         {
-            NpcCatalog catalog = CreateCatalog((10, 0), (20, 1), (30, 2));
-            var filterState = new BestiaryFilterState(Array.Empty<int>());
+            NpcCatalog catalog = CreateCatalog((10, 0), (20, 1), (30, 2), (40, 3), (50, 4));
+            var filterState = new BestiaryFilterState([1]);
             var states = new Dictionary<int, BestiaryEntryObservation>
             {
                 [10] = Encountered(),
                 [20] = Unknown(),
-                [30] = Encountered()
+                [30] = Encountered(),
+                [40] = Encountered(),
+                [50] = Encountered()
             };
             var lootIndex = NpcLootIndex.Create(
                 catalog,
                 [
                     new NpcLootRelation(10, 100, 1, 1, 0.5f),
-                    new NpcLootRelation(20, 200, 1, 1, 0.5f)
+                    new NpcLootRelation(20, 200, 1, 1, 0.5f),
+                    new NpcLootRelation(50, 500, 1, 1, 0.5f)
                 ]);
             var merchantIndex = new MerchantSourceIndex(
             [
                 new MerchantSourceRelation(10, 100, new MerchantSourceVariant(1, [])),
-                new MerchantSourceRelation(20, 200, new MerchantSourceVariant(1, []))
+                new MerchantSourceRelation(20, 200, new MerchantSourceVariant(1, [])),
+                new MerchantSourceRelation(30, 300, new MerchantSourceVariant(1, [])),
+                new MerchantSourceRelation(50, 500, new MerchantSourceVariant(1, []))
             ]);
             BestiaryBrowserModel model = CreateModel(
                 catalog,
                 filterState,
                 states,
+                metadataMatcher: (entry, filterId) => filterId == 1 && entry.NetId is 10 or 20 or 30 or 40,
                 merchantSourceIndex: merchantIndex,
-                npcLootIndex: lootIndex);
+                npcLootIndex: lootIndex,
+                bannerItemProvider: entry => entry.NetId switch
+                {
+                    30 => 300,
+                    40 => 400,
+                    _ => null
+                });
 
+            filterState.BestiaryCriterion = BestiaryFilterCriterion.ForNative(1);
             filterState.DropCriterion = BestiaryFilterCriterion.HasDrops;
             filterState.EncounterFilter = BestiaryEncounterFilter.Encountered;
             filterState.HasStockOnly = true;
             Assert.That(model.SynchronizeState(), Is.True);
 
-            Assert.That(model.ScopeTotalCount, Is.EqualTo(2));
-            Assert.That(model.ScopeEncounteredCount, Is.EqualTo(1));
-            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([10]));
+            Assert.That(model.ScopeTotalCount, Is.EqualTo(4));
+            Assert.That(model.ScopeEncounteredCount, Is.EqualTo(3));
+            Assert.That(GetNetIds(model.VisibleEntries), Is.EqualTo([10, 30]));
         }
 
         [Test]
@@ -730,11 +860,13 @@ namespace TerrarianCompendium.Tests.Bestiary
             MerchantSourceIndex merchantSourceIndex = null,
             ChecklistState checklistState = null,
             NpcLootIndex npcLootIndex = null,
-            JourneyResearchState journeyResearchState = null)
+            JourneyResearchState journeyResearchState = null,
+            Func<NpcCatalogEntry, int?> bannerItemProvider = null)
         {
             names ??= catalog.Entries.ToDictionary(entry => entry.NetId, entry => $"NPC {entry.NetId}");
             metadataMatcher ??= (_, _) => true;
             sortEntries ??= (_, _, _) => { };
+            bannerItemProvider ??= _ => null;
             checklistState ??= CreateChecklistState();
 
             return new BestiaryBrowserModel(
@@ -744,6 +876,7 @@ namespace TerrarianCompendium.Tests.Bestiary
                 (entry, query) => names[entry.NetId].IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0,
                 metadataMatcher,
                 sortEntries,
+                bannerItemProvider,
                 checklistState,
                 npcLootIndex,
                 journeyResearchState,

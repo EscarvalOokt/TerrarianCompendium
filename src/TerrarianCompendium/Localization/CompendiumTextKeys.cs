@@ -95,15 +95,48 @@ namespace TerrarianCompendium.Localization
             public const string ItemsSection = "Browser.Section.Items";
             public const string ArmorSetsSection = "Browser.Section.ArmorSets";
             public const string RecipesSection = "Browser.Section.Recipes";
+            public const string ShimmerSection = "Browser.Section.Shimmer";
             public const string BestiarySection = "Browser.Section.Bestiary";
+            public const string AnglerSection = "Browser.Section.Angler";
             public const string Details = "Browser.Details";
             public const string NoSelection = "Browser.NoSelection";
             public const string ArmorSetsUnavailable = "Browser.ArmorSetsUnavailable";
             public const string RecipesUnavailable = "Browser.RecipesUnavailable";
+            public const string ShimmerUnavailable = "Browser.ShimmerUnavailable";
             public const string BestiaryUnavailable = "Browser.BestiaryUnavailable";
+            public const string AnglerUnavailable = "Browser.AnglerUnavailable";
             public const string ArmorSetDetailsUnavailable = "Browser.ArmorSetDetailsUnavailable";
             public const string RecipeDetailsUnavailable = "Browser.RecipeDetailsUnavailable";
+            public const string ShimmerDetailsUnavailable = "Browser.ShimmerDetailsUnavailable";
             public const string NpcDetailsUnavailable = "Browser.NpcDetailsUnavailable";
+        }
+
+        public static class Angler
+        {
+            public const string QuestTitle = "Angler.QuestTitle";
+            public const string QuestNotCompletedToday = "Angler.QuestNotCompletedToday";
+            public const string QuestCompletedToday = "Angler.QuestCompletedToday";
+            public const string CompletedQuests = "Angler.CompletedQuests";
+            public const string Milestones = "Angler.Milestones";
+            public const string MilestoneQuest = "Angler.MilestoneQuest";
+            public const string RewardsTitle = "Angler.Rewards.Title";
+            public const string RewardInfoTooltip = "Angler.Rewards.InfoTooltip";
+            public const string CurrentQuestBonus = "Angler.Rewards.CurrentQuestBonus";
+            public const string CurrentQuestBonusGuaranteedInfo = "Angler.Rewards.CurrentQuestBonus.GuaranteedInfo";
+            public const string CurrentQuestBonusConditionalInfo = "Angler.Rewards.CurrentQuestBonus.ConditionalInfo";
+            public const string MainRewards = "Angler.Rewards.Main";
+            public const string MainRewardsInfo = "Angler.Rewards.Main.Info";
+            public const string FishingGear = "Angler.Rewards.FishingGear";
+            public const string FishingGearInfo = "Angler.Rewards.FishingGear.Info";
+            public const string Potions = "Angler.Rewards.Potions";
+            public const string PotionsInfo = "Angler.Rewards.Potions.Info";
+            public const string Decorations = "Angler.Rewards.Decorations";
+            public const string DecorationsInfo = "Angler.Rewards.Decorations.Info";
+            public const string Bait = "Angler.Rewards.Bait";
+            public const string BaitInfo = "Angler.Rewards.Bait.Info";
+            public const string Money = "Angler.Rewards.Money";
+            public const string MoneyInfo = "Angler.Rewards.Money.Info";
+            public const string Unavailable = "Angler.Unavailable";
         }
 
         public static class Items
@@ -160,6 +193,8 @@ namespace TerrarianCompendium.Localization
             public const string RecipesSection = "ItemDetails.Recipes";
             public const string CraftingStation = "ItemDetails.CraftingStation";
             public const string StationRecipesTooltip = "ItemDetails.StationRecipesTooltip";
+            public const string ShimmerSection = "ItemDetails.Shimmer";
+            public const string ShimmerTooltip = "ItemDetails.ShimmerTooltip";
             public const string BaseValueTooltip = "ItemDetails.BaseValueTooltip";
             public const string Unresearched = "ItemDetails.Unresearched";
             public const string Researched = "ItemDetails.Researched";
@@ -258,6 +293,46 @@ namespace TerrarianCompendium.Localization
             public const string AnyOf = "Recipes.Details.AnyOf";
             public const string Ingredient = "Recipes.Details.Ingredient";
             public const string NoSpecialRequirements = "Recipes.Details.NoSpecialRequirements";
+        }
+
+        public static class Shimmer
+        {
+            public const string EmptyState = "Shimmer.EmptyState";
+            public const string ShowAll = "Shimmer.ShowAll";
+            public const string ClearFilters = "Shimmer.ClearFilters";
+            public const string FiltersTooltip = "Shimmer.FiltersTooltip";
+            public const string FilterKind = "Shimmer.Filter.Kind";
+            public const string FilterTransform = "Shimmer.Filter.Transform";
+            public const string FilterDecraft = "Shimmer.Filter.Decraft";
+            public const string FilterProgression = "Shimmer.Filter.Progression";
+            public const string FilterUnlocked = "Shimmer.Filter.Unlocked";
+            public const string FilterLocked = "Shimmer.Filter.Locked";
+            public const string FilterCompletion = "Shimmer.Filter.Completion";
+            public const string FilterFound = "Shimmer.Filter.Found";
+            public const string FilterMissing = "Shimmer.Filter.Missing";
+            public const string FilterResearch = "Shimmer.Filter.Research";
+            public const string FilterResearched = "Shimmer.Filter.Researched";
+            public const string FilterUnresearched = "Shimmer.Filter.Unresearched";
+            public const string DetailsMissing = "Shimmer.Details.Missing";
+            public const string DetailsTransformation = "Shimmer.Details.Transformation";
+            public const string DetailsType = "Shimmer.Details.Type";
+            public const string DetailsStatus = "Shimmer.Details.Status";
+            public const string DetailsVariant = "Shimmer.Details.Variant";
+            public const string DetailsVariantCount = "Shimmer.Details.VariantCount";
+            public const string DetailsConditions = "Shimmer.Details.Conditions";
+            public const string DetailsAfterBoss = "Shimmer.Details.AfterBoss";
+            public const string DetailsCrimsonWorld = "Shimmer.Details.CrimsonWorld";
+            public const string DetailsCorruptionWorld = "Shimmer.Details.CorruptionWorld";
+            public const string DetailsMoonPhase = "Shimmer.Details.MoonPhase";
+            public const string DetailsInput = "Shimmer.Details.Input";
+            public const string DetailsResult = "Shimmer.Details.Result";
+            public const string DetailsReturns = "Shimmer.Details.Returns";
+            public const string DetailsNoProducingVariants = "Shimmer.Details.NoProducingVariants";
+            public const string DetailsNoMatchingVariants = "Shimmer.Details.NoMatchingVariants";
+            public const string DetailsAlchemyNotice = "Shimmer.Details.AlchemyNotice";
+            public const string DetailsRecipe = "Shimmer.Details.Recipe";
+            public const string DetailsOpenRecipe = "Shimmer.Details.OpenRecipe";
+            public const string DetailsOpenRecipeTooltip = "Shimmer.Details.OpenRecipeTooltip";
         }
 
         public static class DirectCraft

@@ -120,7 +120,9 @@ namespace TerrarianCompendium.Details
             bool fishingSourceDataAvailable,
             IEnumerable<ItemDetailsFishingVariantReference> fishingVariants,
             bool merchantSourceDataAvailable = false,
-            IEnumerable<ItemDetailsNpcSourceReference> purchasableFromMerchants = null)
+            IEnumerable<ItemDetailsNpcSourceReference> purchasableFromMerchants = null,
+            bool shimmerDataAvailable = false,
+            bool hasShimmerRelations = false)
         {
             if (armorSets == null) throw new ArgumentNullException(nameof(armorSets));
             if (droppedByNpcSources == null) throw new ArgumentNullException(nameof(droppedByNpcSources));
@@ -168,6 +170,8 @@ namespace TerrarianCompendium.Details
             OpenableItemLootDataAvailable = openableItemLootDataAvailable;
             FishingSourceDataAvailable = fishingSourceDataAvailable;
             MerchantSourceDataAvailable = merchantSourceDataAvailable;
+            ShimmerDataAvailable = shimmerDataAvailable;
+            HasShimmerRelations = hasShimmerRelations;
         }
 
         public int ItemId { get; }
@@ -206,6 +210,8 @@ namespace TerrarianCompendium.Details
         public IReadOnlyList<ItemDetailsFishingVariantReference> FishingVariants { get; }
         public bool MerchantSourceDataAvailable { get; }
         public IReadOnlyList<ItemDetailsNpcSourceReference> PurchasableFromMerchants { get; }
+        public bool ShimmerDataAvailable { get; }
+        public bool HasShimmerRelations { get; }
 
         private static IReadOnlyList<T> Copy<T>(IEnumerable<T> values, string parameterName) where T : class
         {

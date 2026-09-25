@@ -5,6 +5,8 @@ namespace TerrarianCompendium.Navigation
         Items,
         ArmorSets,
         Recipes,
-        Bestiary
+        Shimmer,
+        Bestiary,
+        Angler
     }
 }

@@ -20,6 +20,11 @@ namespace TerrarianCompendium.Navigation
                    destination.RecipeQueryItemId == itemId;
         }
 
+        public static bool IsShimmerResultSelected(BrowserDestination destination, int itemId)
+        {
+            return destination.IsShimmerQuery && destination.ShimmerQueryItemId == itemId;
+        }
+
         public static bool IsNpcSelected(BrowserDestination destination, int npcNetId)
         {
             return destination.IsNpc && destination.NpcNetId == npcNetId;
@@ -57,6 +62,18 @@ namespace TerrarianCompendium.Navigation
             BrowserDestination destination = IsRecipeResultSelected(navigationState.CurrentDestination, itemId)
                 ? BrowserDestination.ForSection(BrowserSection.Recipes)
                 : BrowserDestination.ForRecipeQuery(itemId);
+
+            return navigationState.Navigate(destination);
+        }
+
+        public static bool ToggleShimmerResult(BrowserNavigationState navigationState, int itemId)
+        {
+            if (navigationState == null)
+                throw new ArgumentNullException(nameof(navigationState));
+
+            BrowserDestination destination = IsShimmerResultSelected(navigationState.CurrentDestination, itemId)
+                ? BrowserDestination.ForSection(BrowserSection.Shimmer)
+                : BrowserDestination.ForShimmerQuery(itemId);
 
             return navigationState.Navigate(destination);
         }

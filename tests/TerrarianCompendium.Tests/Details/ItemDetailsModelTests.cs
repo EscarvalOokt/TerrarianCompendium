@@ -10,6 +10,7 @@ using TerrarianCompendium.Crafting;
 using TerrarianCompendium.Details;
 using TerrarianCompendium.Journey;
 using TerrarianCompendium.Recipes;
+using TerrarianCompendium.Shimmer;
 
 namespace TerrarianCompendium.Tests.Details
 {
@@ -1334,6 +1335,104 @@ namespace TerrarianCompendium.Tests.Details
             Assert.That(
                 projection.FishingVariants[0].ExcludedConditions,
                 Is.EqualTo([FishingSourceConditionKind.InLava]));
+        }
+
+        [Test]
+        public void TryGetProjection_ShimmerUsingOnlyItemExposesRelation()
+        {
+            ItemCatalog catalog = CreateCatalog(new ItemCatalogEntry(1, "Input"), new ItemCatalogEntry(2, "Output"));
+            var shimmerIndex = ShimmerTransformationIndex.Create([CreateDirectShimmerVariant(1, 2)]);
+            var model = new ItemDetailsModel(
+                catalog,
+                new ChecklistState(catalog),
+                new ItemTextIndex(catalog),
+                shimmerTransformationIndex: shimmerIndex);
+
+            Assert.That(model.TryGetProjection(1, out ItemDetailsProjection projection), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(projection.ShimmerDataAvailable, Is.True);
+                Assert.That(projection.HasShimmerRelations, Is.True);
+            });
+        }
+
+        [Test]
+        public void TryGetProjection_ShimmerProducingOnlyItemExposesRelation()
+        {
+            ItemCatalog catalog = CreateCatalog(new ItemCatalogEntry(1, "Input"), new ItemCatalogEntry(2, "Output"));
+            var shimmerIndex = ShimmerTransformationIndex.Create([CreateDirectShimmerVariant(1, 2)]);
+            var model = new ItemDetailsModel(
+                catalog,
+                new ChecklistState(catalog),
+                new ItemTextIndex(catalog),
+                shimmerTransformationIndex: shimmerIndex);
+
+            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection projection), Is.True);
+            Assert.That(projection.HasShimmerRelations, Is.True);
+        }
+
+        [Test]
+        public void TryGetProjection_ItemWithProducingAndUsingRelationsExposesSingleRelationFlag()
+        {
+            ItemCatalog catalog = CreateCatalog(
+                new ItemCatalogEntry(1, "First"),
+                new ItemCatalogEntry(2, "Middle"),
+                new ItemCatalogEntry(3, "Last"));
+            var shimmerIndex = ShimmerTransformationIndex.Create(
+                [CreateDirectShimmerVariant(1, 2), CreateDirectShimmerVariant(2, 3)]);
+            var model = new ItemDetailsModel(
+                catalog,
+                new ChecklistState(catalog),
+                new ItemTextIndex(catalog),
+                shimmerTransformationIndex: shimmerIndex);
+
+            Assert.That(model.TryGetProjection(2, out ItemDetailsProjection projection), Is.True);
+            Assert.That(projection.HasShimmerRelations, Is.True);
+        }
+
+        [Test]
+        public void TryGetProjection_UnrelatedItemDoesNotExposeShimmerRelation()
+        {
+            ItemCatalog catalog = CreateCatalog(
+                new ItemCatalogEntry(1, "Input"),
+                new ItemCatalogEntry(2, "Output"),
+                new ItemCatalogEntry(3, "Ordinary"));
+            var shimmerIndex = ShimmerTransformationIndex.Create([CreateDirectShimmerVariant(1, 2)]);
+            var model = new ItemDetailsModel(
+                catalog,
+                new ChecklistState(catalog),
+                new ItemTextIndex(catalog),
+                shimmerTransformationIndex: shimmerIndex);
+
+            Assert.That(model.TryGetProjection(3, out ItemDetailsProjection projection), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(projection.ShimmerDataAvailable, Is.True);
+                Assert.That(projection.HasShimmerRelations, Is.False);
+            });
+        }
+
+        [Test]
+        public void TryGetProjection_WithoutShimmerIndexReportsUnavailableShimmerData()
+        {
+            ItemCatalog catalog = CreateCatalog(new ItemCatalogEntry(1, "Item"));
+            var model = new ItemDetailsModel(catalog, new ChecklistState(catalog), new ItemTextIndex(catalog));
+
+            Assert.That(model.TryGetProjection(1, out ItemDetailsProjection projection), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(projection.ShimmerDataAvailable, Is.False);
+                Assert.That(projection.HasShimmerRelations, Is.False);
+            });
+        }
+
+        private static ShimmerTransformationVariant CreateDirectShimmerVariant(int inputItemId, int resultItemId)
+        {
+            return new ShimmerTransformationVariant(
+                inputItemId,
+                ShimmerTransformationKind.Direct,
+                1,
+                [new ShimmerTransformationOutput(resultItemId, 1)]);
         }
 
         private static ItemCatalog CreateCatalog(params ItemCatalogEntry[] entries)

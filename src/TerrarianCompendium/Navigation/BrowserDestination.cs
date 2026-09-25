@@ -9,6 +9,7 @@ namespace TerrarianCompendium.Navigation
         ArmorSet,
         RecipeQuery,
         Recipe,
+        ShimmerQuery,
         Npc
     }
 
@@ -21,6 +22,7 @@ namespace TerrarianCompendium.Navigation
             int armorSetId,
             int recipeRuntimeIndex,
             int recipeQueryItemId,
+            int shimmerQueryItemId,
             int npcNetId)
         {
             Kind = kind;
@@ -29,6 +31,7 @@ namespace TerrarianCompendium.Navigation
             ArmorSetId = armorSetId;
             RecipeRuntimeIndex = recipeRuntimeIndex;
             RecipeQueryItemId = recipeQueryItemId;
+            ShimmerQueryItemId = shimmerQueryItemId;
             NpcNetId = npcNetId;
         }
 
@@ -44,6 +47,8 @@ namespace TerrarianCompendium.Navigation
 
         public int RecipeQueryItemId { get; }
 
+        public int ShimmerQueryItemId { get; }
+
         public int NpcNetId { get; }
 
         public bool IsSectionRoot => Kind == BrowserDestinationKind.SectionRoot;
@@ -56,6 +61,8 @@ namespace TerrarianCompendium.Navigation
 
         public bool IsRecipe => Kind == BrowserDestinationKind.Recipe;
 
+        public bool IsShimmerQuery => Kind == BrowserDestinationKind.ShimmerQuery;
+
         public bool IsNpc => Kind == BrowserDestinationKind.Npc;
 
         public bool HasRecipeQuery => IsRecipeQuery || (IsRecipe && RecipeQueryItemId > 0);
@@ -64,7 +71,7 @@ namespace TerrarianCompendium.Navigation
         {
             ValidateSection(section);
 
-            return new BrowserDestination(BrowserDestinationKind.SectionRoot, section, 0, 0, 0, 0, 0);
+            return new BrowserDestination(BrowserDestinationKind.SectionRoot, section, 0, 0, 0, 0, 0, 0);
         }
 
         public static BrowserDestination ForItem(int itemId)
@@ -72,7 +79,7 @@ namespace TerrarianCompendium.Navigation
             if (itemId <= 0)
                 throw new ArgumentOutOfRangeException(nameof(itemId), itemId, "Item ID must be greater than zero.");
 
-            return new BrowserDestination(BrowserDestinationKind.Item, BrowserSection.Items, itemId, 0, 0, 0, 0);
+            return new BrowserDestination(BrowserDestinationKind.Item, BrowserSection.Items, itemId, 0, 0, 0, 0, 0);
         }
 
         public static BrowserDestination ForArmorSet(int armorSetId)
@@ -92,6 +99,7 @@ namespace TerrarianCompendium.Navigation
                 armorSetId,
                 0,
                 0,
+                0,
                 0);
         }
 
@@ -106,6 +114,7 @@ namespace TerrarianCompendium.Navigation
                 0,
                 0,
                 itemId,
+                0,
                 0);
         }
 
@@ -119,6 +128,7 @@ namespace TerrarianCompendium.Navigation
                 0,
                 0,
                 runtimeRecipeIndex,
+                0,
                 0,
                 0);
         }
@@ -135,12 +145,34 @@ namespace TerrarianCompendium.Navigation
                 0,
                 runtimeRecipeIndex,
                 queryItemId,
+                0,
+                0);
+        }
+
+        public static BrowserDestination ForShimmerQuery(int itemId)
+        {
+            if (itemId <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(itemId),
+                    itemId,
+                    "Shimmer query item ID must be greater than zero.");
+            }
+
+            return new BrowserDestination(
+                BrowserDestinationKind.ShimmerQuery,
+                BrowserSection.Shimmer,
+                0,
+                0,
+                0,
+                0,
+                itemId,
                 0);
         }
 
         public static BrowserDestination ForNpc(int npcNetId)
         {
-            return new BrowserDestination(BrowserDestinationKind.Npc, BrowserSection.Bestiary, 0, 0, 0, 0, npcNetId);
+            return new BrowserDestination(BrowserDestinationKind.Npc, BrowserSection.Bestiary, 0, 0, 0, 0, 0, npcNetId);
         }
 
         public bool Equals(BrowserDestination other)
@@ -151,6 +183,7 @@ namespace TerrarianCompendium.Navigation
                    ArmorSetId == other.ArmorSetId &&
                    RecipeRuntimeIndex == other.RecipeRuntimeIndex &&
                    RecipeQueryItemId == other.RecipeQueryItemId &&
+                   ShimmerQueryItemId == other.ShimmerQueryItemId &&
                    NpcNetId == other.NpcNetId;
         }
 
@@ -169,6 +202,7 @@ namespace TerrarianCompendium.Navigation
                 hashCode = (hashCode * 397) ^ ArmorSetId;
                 hashCode = (hashCode * 397) ^ RecipeRuntimeIndex;
                 hashCode = (hashCode * 397) ^ RecipeQueryItemId;
+                hashCode = (hashCode * 397) ^ ShimmerQueryItemId;
                 hashCode = (hashCode * 397) ^ NpcNetId;
 
                 return hashCode;
@@ -192,7 +226,9 @@ namespace TerrarianCompendium.Navigation
                 case BrowserSection.Items:
                 case BrowserSection.ArmorSets:
                 case BrowserSection.Recipes:
+                case BrowserSection.Shimmer:
                 case BrowserSection.Bestiary:
+                case BrowserSection.Angler:
                     return;
 
                 default:

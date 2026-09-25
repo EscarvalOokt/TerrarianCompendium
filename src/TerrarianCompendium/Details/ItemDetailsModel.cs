@@ -8,6 +8,7 @@ using TerrarianCompendium.Checklist;
 using TerrarianCompendium.Crafting;
 using TerrarianCompendium.Journey;
 using TerrarianCompendium.Recipes;
+using TerrarianCompendium.Shimmer;
 
 namespace TerrarianCompendium.Details
 {
@@ -28,6 +29,7 @@ namespace TerrarianCompendium.Details
         private readonly OpenableItemLootIndex _openableItemLootIndex;
         private readonly RecipeIndex _recipeIndex;
         private readonly RecipeStationDisplayIndex _recipeStationDisplayIndex;
+        private readonly ShimmerTransformationIndex _shimmerTransformationIndex;
         private readonly WorldLootSourceIndex _worldLootSourceIndex;
 
         private long _cachedChecklistRevision = -1;
@@ -53,7 +55,8 @@ namespace TerrarianCompendium.Details
             WorldLootSourceIndex worldLootSourceIndex = null,
             OpenableItemLootIndex openableItemLootIndex = null,
             FishingSourceIndex fishingSourceIndex = null,
-            MerchantSourceIndex merchantSourceIndex = null)
+            MerchantSourceIndex merchantSourceIndex = null,
+            ShimmerTransformationIndex shimmerTransformationIndex = null)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _checklistState = checklistState ?? throw new ArgumentNullException(nameof(checklistState));
@@ -90,6 +93,7 @@ namespace TerrarianCompendium.Details
             _worldLootSourceIndex = worldLootSourceIndex;
             _openableItemLootIndex = openableItemLootIndex;
             _fishingSourceIndex = fishingSourceIndex;
+            _shimmerTransformationIndex = shimmerTransformationIndex;
 
             if (_npcCatalog != null)
             {
@@ -132,6 +136,8 @@ namespace TerrarianCompendium.Details
                 ? BuildOpenableContents(itemId)
                 : [];
             bool fishingSourceDataAvailable = _fishingSourceIndex != null;
+            bool shimmerDataAvailable = _shimmerTransformationIndex != null;
+            bool hasShimmerRelations = shimmerDataAvailable && _shimmerTransformationIndex.HasRelation(itemId);
             IReadOnlyList<ItemDetailsFishingVariantReference> fishingVariants = fishingSourceDataAvailable
                 ? BuildFishingVariants(itemId)
                 : [];
@@ -220,7 +226,9 @@ namespace TerrarianCompendium.Details
                 fishingSourceDataAvailable,
                 fishingVariants,
                 merchantSourceDataAvailable,
-                purchasableFromMerchants);
+                purchasableFromMerchants,
+                shimmerDataAvailable,
+                hasShimmerRelations);
 
             _cachedItemId = itemId;
             _cachedProjection = projection;

@@ -126,6 +126,7 @@ namespace TerrarianCompendium.Navigation
                 return true;
 
             _openItem(item.type);
+            WidgetInput.ConsumeRightClick();
             _consumeRightClickUntilRelease = true;
             return false;
         }

@@ -20,6 +20,9 @@ namespace TerrarianCompendium.UI.Vanilla
         private const int DetailsGap = 8;
         private const int DetailsTopInset = 3;
         private const int ContentInset = 4;
+        private readonly AnglerBrowserView _anglerBrowserView;
+        private readonly VanillaTextButton _anglerTab;
+        private readonly MessageElement _anglerUnavailableState;
 
         private readonly ArmorSetBrowserView _armorSetBrowserView;
         private readonly VanillaTextButton _armorSetsTab;
@@ -41,6 +44,9 @@ namespace TerrarianCompendium.UI.Vanilla
         private readonly VanillaTextButton _recipesTab;
         private readonly MessageElement _recipesUnavailableState;
         private readonly UIElement _sectionHost;
+        private readonly ShimmerBrowserView _shimmerBrowserView;
+        private readonly VanillaTextButton _shimmerTab;
+        private readonly MessageElement _shimmerUnavailableState;
         private BrowserSection _activeSection;
         private UIElement _activeSectionContent;
         private bool _hasActiveSection;
@@ -51,10 +57,13 @@ namespace TerrarianCompendium.UI.Vanilla
             ItemBrowserView itemBrowserView,
             ArmorSetBrowserView armorSetBrowserView,
             RecipeBrowserView recipeBrowserView,
+            ShimmerBrowserView shimmerBrowserView,
             BestiaryBrowserView bestiaryBrowserView,
+            AnglerBrowserView anglerBrowserView,
             ItemDetailsView itemDetailsView,
             ArmorSetDetailsView armorSetDetailsView,
             RecipeDetailsView recipeDetailsView,
+            ShimmerDetailsView shimmerDetailsView,
             NpcDetailsView npcDetailsView,
             BrowserNavigationState navigationState,
             CompendiumLocalization localization,
@@ -67,7 +76,9 @@ namespace TerrarianCompendium.UI.Vanilla
             _itemBrowserView = itemBrowserView ?? throw new ArgumentNullException(nameof(itemBrowserView));
             _armorSetBrowserView = armorSetBrowserView;
             _recipeBrowserView = recipeBrowserView;
+            _shimmerBrowserView = shimmerBrowserView;
             _bestiaryBrowserView = bestiaryBrowserView;
+            _anglerBrowserView = anglerBrowserView;
             _navigationState = navigationState ?? throw new ArgumentNullException(nameof(navigationState));
             _localization = localization ?? throw new ArgumentNullException(nameof(localization));
             _detailsSurface = new BrowserDetailsSurface(
@@ -75,6 +86,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 itemDetailsView ?? throw new ArgumentNullException(nameof(itemDetailsView)),
                 armorSetDetailsView,
                 recipeDetailsView,
+                shimmerDetailsView,
                 npcDetailsView,
                 localization);
 
@@ -88,7 +100,9 @@ namespace TerrarianCompendium.UI.Vanilla
             _itemsTab = new VanillaTextButton(string.Empty, () => NavigateToSection(BrowserSection.Items));
             _armorSetsTab = new VanillaTextButton(string.Empty, () => NavigateToSection(BrowserSection.ArmorSets));
             _recipesTab = new VanillaTextButton(string.Empty, () => NavigateToSection(BrowserSection.Recipes));
+            _shimmerTab = new VanillaTextButton(string.Empty, () => NavigateToSection(BrowserSection.Shimmer));
             _bestiaryTab = new VanillaTextButton(string.Empty, () => NavigateToSection(BrowserSection.Bestiary));
+            _anglerTab = new VanillaTextButton(string.Empty, () => NavigateToSection(BrowserSection.Angler));
 
             _sectionHost = new UIElement
             {
@@ -98,7 +112,9 @@ namespace TerrarianCompendium.UI.Vanilla
 
             _armorSetsUnavailableState = new MessageElement(string.Empty);
             _recipesUnavailableState = new MessageElement(string.Empty);
+            _shimmerUnavailableState = new MessageElement(string.Empty);
             _bestiaryUnavailableState = new MessageElement(string.Empty);
+            _anglerUnavailableState = new MessageElement(string.Empty);
 
             _contentLayout = new BrowserContentLayout(
                 _backButton,
@@ -106,7 +122,9 @@ namespace TerrarianCompendium.UI.Vanilla
                 _itemsTab,
                 _armorSetsTab,
                 _recipesTab,
+                _shimmerTab,
                 _bestiaryTab,
+                _anglerTab,
                 _sectionHost,
                 _detailsSurface)
             {
@@ -127,7 +145,9 @@ namespace TerrarianCompendium.UI.Vanilla
             _itemBrowserView.IsWritingText ||
             _armorSetBrowserView?.IsWritingText == true ||
             _recipeBrowserView?.IsWritingText == true ||
-            _bestiaryBrowserView?.IsWritingText == true;
+            _shimmerBrowserView?.IsWritingText == true ||
+            _bestiaryBrowserView?.IsWritingText == true ||
+            _anglerBrowserView?.IsWritingText == true;
 
         public bool HasOpenTransientSurface
         {
@@ -150,8 +170,14 @@ namespace TerrarianCompendium.UI.Vanilla
                     case BrowserSection.Recipes:
                         return _recipeBrowserView?.HasOpenTransientSurface == true;
 
+                    case BrowserSection.Shimmer:
+                        return _shimmerBrowserView?.HasOpenTransientSurface == true;
+
                     case BrowserSection.Bestiary:
                         return _bestiaryBrowserView?.HasOpenTransientSurface == true;
+
+                    case BrowserSection.Angler:
+                        return _anglerBrowserView?.HasOpenTransientSurface == true;
 
                     default:
                         return false;
@@ -178,8 +204,14 @@ namespace TerrarianCompendium.UI.Vanilla
                 case BrowserSection.Recipes:
                     return _recipeBrowserView?.TryCloseTransientSurface() == true;
 
+                case BrowserSection.Shimmer:
+                    return _shimmerBrowserView?.TryCloseTransientSurface() == true;
+
                 case BrowserSection.Bestiary:
                     return _bestiaryBrowserView?.TryCloseTransientSurface() == true;
+
+                case BrowserSection.Angler:
+                    return _anglerBrowserView?.TryCloseTransientSurface() == true;
 
                 default:
                     return false;
@@ -228,11 +260,15 @@ namespace TerrarianCompendium.UI.Vanilla
             _itemsTab.Text = _localization.Get(CompendiumTextKeys.Browser.ItemsSection);
             _armorSetsTab.Text = _localization.Get(CompendiumTextKeys.Browser.ArmorSetsSection);
             _recipesTab.Text = _localization.Get(CompendiumTextKeys.Browser.RecipesSection);
+            _shimmerTab.Text = _localization.Get(CompendiumTextKeys.Browser.ShimmerSection);
             _bestiaryTab.Text = _localization.Get(CompendiumTextKeys.Browser.BestiarySection);
+            _anglerTab.Text = _localization.Get(CompendiumTextKeys.Browser.AnglerSection);
             _panel.CloseButton.TooltipText = _localization.Get(CompendiumTextKeys.Common.Close);
             _armorSetsUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.ArmorSetsUnavailable));
             _recipesUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.RecipesUnavailable));
+            _shimmerUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.ShimmerUnavailable));
             _bestiaryUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.BestiaryUnavailable));
+            _anglerUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.AnglerUnavailable));
             _contentLayout.Recalculate();
         }
 
@@ -276,6 +312,7 @@ namespace TerrarianCompendium.UI.Vanilla
 
             if (!force && _hasActiveSection && _activeSection == section)
             {
+                _contentLayout.DetailsVisible = section != BrowserSection.Angler;
                 SynchronizeTabState(section);
                 return;
             }
@@ -297,6 +334,7 @@ namespace TerrarianCompendium.UI.Vanilla
             _activeSection = section;
             _activeSectionContent = content;
             _hasActiveSection = true;
+            _contentLayout.DetailsVisible = section != BrowserSection.Angler;
             SynchronizeTabState(section);
             _contentLayout.Recalculate();
         }
@@ -314,8 +352,14 @@ namespace TerrarianCompendium.UI.Vanilla
                 case BrowserSection.Recipes:
                     return _recipeBrowserView != null ? _recipeBrowserView : _recipesUnavailableState;
 
+                case BrowserSection.Shimmer:
+                    return _shimmerBrowserView != null ? _shimmerBrowserView : _shimmerUnavailableState;
+
                 case BrowserSection.Bestiary:
                     return _bestiaryBrowserView != null ? _bestiaryBrowserView : _bestiaryUnavailableState;
+
+                case BrowserSection.Angler:
+                    return _anglerBrowserView != null ? _anglerBrowserView : _anglerUnavailableState;
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(section), section, "Unsupported browser section.");
@@ -327,7 +371,9 @@ namespace TerrarianCompendium.UI.Vanilla
             _itemsTab.IsActive = section == BrowserSection.Items;
             _armorSetsTab.IsActive = section == BrowserSection.ArmorSets;
             _recipesTab.IsActive = section == BrowserSection.Recipes;
+            _shimmerTab.IsActive = section == BrowserSection.Shimmer;
             _bestiaryTab.IsActive = section == BrowserSection.Bestiary;
+            _anglerTab.IsActive = section == BrowserSection.Angler;
         }
 
         private sealed class BrowserContentLayout : UIElement
@@ -337,6 +383,8 @@ namespace TerrarianCompendium.UI.Vanilla
             private readonly VanillaTextButton _forwardButton;
             private readonly UIElement _sectionHost;
             private readonly VanillaTextButton[] _tabs;
+            private bool _detailsVisible = true;
+            private bool _isActive;
 
             public BrowserContentLayout(
                 VanillaTextButton backButton,
@@ -344,7 +392,9 @@ namespace TerrarianCompendium.UI.Vanilla
                 VanillaTextButton itemsTab,
                 VanillaTextButton armorSetsTab,
                 VanillaTextButton recipesTab,
+                VanillaTextButton shimmerTab,
                 VanillaTextButton bestiaryTab,
+                VanillaTextButton anglerTab,
                 UIElement sectionHost,
                 BrowserDetailsSurface detailsSurface)
             {
@@ -355,7 +405,9 @@ namespace TerrarianCompendium.UI.Vanilla
                     itemsTab ?? throw new ArgumentNullException(nameof(itemsTab)),
                     armorSetsTab ?? throw new ArgumentNullException(nameof(armorSetsTab)),
                     recipesTab ?? throw new ArgumentNullException(nameof(recipesTab)),
-                    bestiaryTab ?? throw new ArgumentNullException(nameof(bestiaryTab))
+                    shimmerTab ?? throw new ArgumentNullException(nameof(shimmerTab)),
+                    bestiaryTab ?? throw new ArgumentNullException(nameof(bestiaryTab)),
+                    anglerTab ?? throw new ArgumentNullException(nameof(anglerTab))
                 ];
                 _sectionHost = sectionHost ?? throw new ArgumentNullException(nameof(sectionHost));
                 _detailsSurface = detailsSurface ?? throw new ArgumentNullException(nameof(detailsSurface));
@@ -369,6 +421,52 @@ namespace TerrarianCompendium.UI.Vanilla
 
                 Append(_sectionHost);
                 Append(_detailsSurface);
+            }
+
+            public bool DetailsVisible
+            {
+                get => _detailsVisible;
+                set
+                {
+                    if (_detailsVisible == value)
+                        return;
+
+                    _detailsVisible = value;
+
+                    if (_detailsVisible)
+                    {
+                        if (_detailsSurface.Parent != this)
+                        {
+                            Append(_detailsSurface);
+
+                            if (_isActive)
+                                _detailsSurface.Activate();
+                        }
+                    }
+                    else if (_detailsSurface.Parent == this)
+                    {
+                        _detailsSurface.TryCloseTransientSurface();
+
+                        if (_isActive)
+                            _detailsSurface.Deactivate();
+
+                        RemoveChild(_detailsSurface);
+                    }
+
+                    Recalculate();
+                }
+            }
+
+            public override void OnActivate()
+            {
+                _isActive = true;
+                base.OnActivate();
+            }
+
+            public override void OnDeactivate()
+            {
+                _isActive = false;
+                base.OnDeactivate();
             }
 
             public override void RecalculateChildren()
@@ -407,18 +505,26 @@ namespace TerrarianCompendium.UI.Vanilla
 
                 contentY += SectionTabsHeight + LayoutSpacing;
                 int contentHeight = Math.Max(0, height - contentY - ContentInset);
-                int detailsWidth = BrowserShell.CalculateDetailsWidth(contentWidth);
-                int detailsGap = Math.Min(DetailsGap, Math.Max(0, contentWidth - detailsWidth));
-                int sectionWidth = Math.Max(0, contentWidth - detailsGap - detailsWidth);
-                int detailsHeight = Math.Max(0, contentHeight - DetailsTopInset);
 
-                LayoutElement(_sectionHost, contentX, contentY, sectionWidth, contentHeight);
-                LayoutElement(
-                    _detailsSurface,
-                    contentX + sectionWidth + detailsGap,
-                    contentY + DetailsTopInset,
-                    detailsWidth,
-                    detailsHeight);
+                if (DetailsVisible)
+                {
+                    int detailsWidth = BrowserShell.CalculateDetailsWidth(contentWidth);
+                    int detailsGap = Math.Min(DetailsGap, Math.Max(0, contentWidth - detailsWidth));
+                    int sectionWidth = Math.Max(0, contentWidth - detailsGap - detailsWidth);
+                    int detailsHeight = Math.Max(0, contentHeight - DetailsTopInset);
+
+                    LayoutElement(_sectionHost, contentX, contentY, sectionWidth, contentHeight);
+                    LayoutElement(
+                        _detailsSurface,
+                        contentX + sectionWidth + detailsGap,
+                        contentY + DetailsTopInset,
+                        detailsWidth,
+                        detailsHeight);
+                }
+                else
+                {
+                    LayoutElement(_sectionHost, contentX, contentY, contentWidth, contentHeight);
+                }
 
                 base.RecalculateChildren();
             }

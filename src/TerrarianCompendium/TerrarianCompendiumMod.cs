@@ -6,6 +6,7 @@ using TerrariaModder.Core;
 using TerrariaModder.Core.Events;
 using TerrariaModder.Core.Logging;
 using TerrarianCompendium.Acquisition;
+using TerrarianCompendium.Angler;
 using TerrarianCompendium.ArmorSets;
 using TerrarianCompendium.Bestiary;
 using TerrarianCompendium.Catalog;
@@ -17,6 +18,7 @@ using TerrarianCompendium.Navigation;
 using TerrarianCompendium.Persistence;
 using TerrarianCompendium.Recipes;
 using TerrarianCompendium.Session;
+using TerrarianCompendium.Shimmer;
 using TerrarianCompendium.UI;
 
 namespace TerrarianCompendium
@@ -26,8 +28,9 @@ namespace TerrarianCompendium
     {
         public const string ModId = "terrarian-compendium";
         public const string ModName = "Terrarian Compendium";
-        public const string ModVersion = "1.1.0";
+        public const string ModVersion = "1.2.0";
 
+        private AnglerRewardCatalog _anglerRewardCatalog;
         private ArmorSetCatalog _armorSetCatalog;
         private ArmorSetIndex _armorSetIndex;
         private BrowserSession _browserSession;
@@ -59,6 +62,8 @@ namespace TerrarianCompendium
         private RecipeFavoriteState _recipeFavoriteState;
         private RecipeIndex _recipeIndex;
         private RecipePersistentKeyIndex _recipePersistentKeyIndex;
+        private ShimmerTransformationCatalog _shimmerTransformationCatalog;
+        private ShimmerTransformationIndex _shimmerTransformationIndex;
         private WorldLootSourceIndex _worldLootSourceIndex;
 
         public string Id => ModId;
@@ -104,6 +109,7 @@ namespace TerrarianCompendium
             FrameEvents.OnPreUpdate -= OnPreUpdate;
             FrameEvents.OnPostUpdate -= OnPostUpdate;
 
+            _anglerRewardCatalog = null;
             _armorSetCatalog = null;
             _armorSetIndex = null;
             _fishingSourceIndex = null;
@@ -117,6 +123,8 @@ namespace TerrarianCompendium
             _recipeCatalog = null;
             _recipeIndex = null;
             _recipePersistentKeyIndex = null;
+            _shimmerTransformationCatalog = null;
+            _shimmerTransformationIndex = null;
             _worldLootSourceIndex = null;
             _recipeFavoriteState = null;
             _recipeFavoritesPath = null;
@@ -179,6 +187,19 @@ namespace TerrarianCompendium
                 catch (Exception exception)
                 {
                     _logger?.Error($"[{ModName}] Failed to build vanilla item catalog.", exception);
+                }
+            }
+
+            if (_anglerRewardCatalog == null && _itemCatalog != null)
+            {
+                try
+                {
+                    _anglerRewardCatalog = AnglerRewardCatalog.Create(_itemCatalog);
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Error($"[{ModName}] Failed to build vanilla Angler reward catalog.", exception);
+                    _anglerRewardCatalog = null;
                 }
             }
 
@@ -261,6 +282,40 @@ namespace TerrarianCompendium
                 }
             }
 
+            if (_shimmerTransformationCatalog == null && _itemCatalog != null && _recipeCatalog != null)
+            {
+                try
+                {
+                    var catalogBuilder = new VanillaShimmerTransformationCatalogBuilder(_logger);
+                    _shimmerTransformationCatalog = catalogBuilder.Build(_itemCatalog, _recipeCatalog);
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Error($"[{ModName}] Failed to build vanilla Shimmer transformation catalog.", exception);
+                    _shimmerTransformationCatalog = null;
+                }
+            }
+
+            if (_shimmerTransformationIndex == null &&
+                _shimmerTransformationCatalog != null &&
+                _itemCatalog != null &&
+                _recipeCatalog != null)
+            {
+                try
+                {
+                    var indexBuilder = new VanillaShimmerTransformationIndexBuilder(_logger);
+                    _shimmerTransformationIndex = indexBuilder.Build(
+                        _shimmerTransformationCatalog,
+                        _itemCatalog,
+                        _recipeCatalog);
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Error($"[{ModName}] Failed to build vanilla Shimmer transformation index.", exception);
+                    _shimmerTransformationIndex = null;
+                }
+            }
+
             if (_recipePersistentKeyIndex == null && _recipeCatalog != null)
             {
                 try
@@ -305,6 +360,7 @@ namespace TerrarianCompendium
 
             _browserSession = new BrowserSession(
                 _itemCatalog,
+                _anglerRewardCatalog,
                 _recipeCatalog,
                 _checklistProgressStore,
                 _characterProgressPathResolver,
@@ -326,6 +382,27 @@ namespace TerrarianCompendium
                 _browserSession.CraftingAvailabilityState,
                 _merchantSourceIndex,
                 _npcLootIndex);
+
+            AnglerBrowserView anglerBrowserView = null;
+
+            if (_browserSession.AnglerQuestModel != null)
+            {
+                try
+                {
+                    anglerBrowserView = new AnglerBrowserView(
+                        _browserSession.AnglerQuestModel,
+                        _itemTextIndex,
+                        _browserSession.ChecklistState,
+                        navigationState,
+                        _localization,
+                        _browserSession.JourneyResearchState);
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Error($"[{ModName}] Failed to create Angler browser.", exception);
+                    anglerBrowserView = null;
+                }
+            }
 
             ArmorSetBrowserView armorSetBrowserView = null;
             ArmorSetDetailsView armorSetDetailsView = null;
@@ -446,6 +523,55 @@ namespace TerrarianCompendium
                     _browserSession.JourneyResearchState);
             }
 
+            ShimmerBrowserView shimmerBrowserView = null;
+            ShimmerDetailsView shimmerDetailsView = null;
+
+            if (_shimmerTransformationIndex != null)
+            {
+                try
+                {
+                    var shimmerFilterState = new ShimmerFilterState();
+                    var shimmerBrowserModel = new ShimmerBrowserModel(
+                        _itemCatalog,
+                        _itemTextIndex,
+                        _shimmerTransformationIndex,
+                        shimmerFilterState,
+                        _browserSession.ChecklistState,
+                        _browserSession.JourneyResearchState,
+                        VanillaShimmerNativeBridge.IsProgressionLocked,
+                        VanillaShimmerNativeBridge.GetRuntimeContextKey);
+                    shimmerBrowserView = new ShimmerBrowserView(
+                        shimmerBrowserModel,
+                        shimmerFilterState,
+                        _itemTextIndex,
+                        _browserSession.ChecklistState,
+                        _browserSession.JourneyResearchState,
+                        navigationState,
+                        _localization);
+
+                    var shimmerDetailsModel = new ShimmerDetailsModel(
+                        _shimmerTransformationIndex,
+                        _itemCatalog,
+                        _itemTextIndex,
+                        _browserSession.ChecklistState,
+                        _browserSession.JourneyResearchState,
+                        shimmerFilterState,
+                        VanillaShimmerNativeBridge.IsProgressionLocked,
+                        VanillaShimmerNativeBridge.GetRuntimeContextKey);
+                    shimmerDetailsView = new ShimmerDetailsView(
+                        shimmerDetailsModel,
+                        navigationState,
+                        _localization,
+                        _browserSession.JourneyResearchState);
+                }
+                catch (Exception exception)
+                {
+                    _logger?.Error($"[{ModName}] Failed to create Shimmer browser/details.", exception);
+                    shimmerBrowserView = null;
+                    shimmerDetailsView = null;
+                }
+            }
+
             var itemDetailsModel = new ItemDetailsModel(
                 _itemCatalog,
                 _browserSession.ChecklistState,
@@ -464,7 +590,8 @@ namespace TerrarianCompendium
                 _worldLootSourceIndex,
                 _openableItemLootIndex,
                 _fishingSourceIndex,
-                _merchantSourceIndex);
+                _merchantSourceIndex,
+                _shimmerTransformationIndex);
 
             var itemDetailsView = new ItemDetailsView(
                 itemDetailsModel,
@@ -509,10 +636,13 @@ namespace TerrarianCompendium
                 itemBrowserView,
                 armorSetBrowserView,
                 recipeBrowserView,
+                shimmerBrowserView,
                 bestiaryBrowserView,
+                anglerBrowserView,
                 itemDetailsView,
                 armorSetDetailsView,
                 recipeDetailsView,
+                shimmerDetailsView,
                 npcDetailsView,
                 navigationState,
                 _localization);

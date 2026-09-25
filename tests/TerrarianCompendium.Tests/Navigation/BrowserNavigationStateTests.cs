@@ -27,9 +27,33 @@ namespace TerrarianCompendium.Tests.Navigation
         }
 
         [Test]
+        public void Navigate_ToShimmerRoot_UpdatesDestination()
+        {
+            AssertSectionRootNavigation(BrowserSection.Shimmer, expectedChanged: true);
+        }
+
+        [Test]
         public void Navigate_ToBestiaryRoot_UpdatesDestination()
         {
             AssertSectionRootNavigation(BrowserSection.Bestiary, expectedChanged: true);
+        }
+
+        [Test]
+        public void Navigate_ToAnglerRoot_UpdatesDestinationAndRevision()
+        {
+            var state = new BrowserNavigationState();
+            long revision = state.Revision;
+
+            bool changed = state.Navigate(BrowserDestination.ForSection(BrowserSection.Angler));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(changed, Is.True);
+                Assert.That(state.Revision, Is.EqualTo(revision + 1));
+                Assert.That(state.CurrentDestination, Is.EqualTo(BrowserDestination.ForSection(BrowserSection.Angler)));
+                Assert.That(state.CurrentDestination.IsSectionRoot, Is.True);
+                Assert.That(state.CurrentDestination.Section, Is.EqualTo(BrowserSection.Angler));
+            });
         }
 
         [Test]
@@ -91,6 +115,54 @@ namespace TerrarianCompendium.Tests.Navigation
             Assert.That(state.CurrentDestination.Section, Is.EqualTo(BrowserSection.Recipes));
             Assert.That(state.CurrentDestination.RecipeRuntimeIndex, Is.EqualTo(7));
             Assert.That(state.CurrentDestination.RecipeQueryItemId, Is.EqualTo(123));
+        }
+
+        [Test]
+        public void Navigate_ToShimmerQuery_StoresItemIdentityInShimmerSection()
+        {
+            var state = new BrowserNavigationState();
+
+            bool changed = state.Navigate(BrowserDestination.ForShimmerQuery(123));
+
+            Assert.That(changed, Is.True);
+            Assert.That(state.CurrentDestination.IsShimmerQuery, Is.True);
+            Assert.That(state.CurrentDestination.Section, Is.EqualTo(BrowserSection.Shimmer));
+            Assert.That(state.CurrentDestination.ShimmerQueryItemId, Is.EqualTo(123));
+        }
+
+        [Test]
+        public void ShimmerQueries_WithDifferentItems_AreNotEqual()
+        {
+            var first = BrowserDestination.ForShimmerQuery(123);
+            var second = BrowserDestination.ForShimmerQuery(456);
+
+            Assert.That(first, Is.Not.EqualTo(second));
+        }
+
+        [Test]
+        public void EqualShimmerQueries_HaveEqualHashCodes()
+        {
+            var first = BrowserDestination.ForShimmerQuery(123);
+            var second = BrowserDestination.ForShimmerQuery(123);
+
+            Assert.That(first.GetHashCode(), Is.EqualTo(second.GetHashCode()));
+        }
+
+        [Test]
+        public void History_ShimmerQueryItem_RestoresCrossDomainPath()
+        {
+            var state = new BrowserNavigationState();
+            var shimmer = BrowserDestination.ForShimmerQuery(123);
+            var item = BrowserDestination.ForItem(456);
+            state.Navigate(shimmer);
+            state.Navigate(item);
+
+            Assert.That(state.GoBack(), Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(shimmer));
+            Assert.That(state.CurrentDestination.Section, Is.EqualTo(BrowserSection.Shimmer));
+
+            Assert.That(state.GoForward(), Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(item));
         }
 
         [Test]
@@ -824,6 +896,24 @@ namespace TerrarianCompendium.Tests.Navigation
         }
 
         [Test]
+        public void History_AnglerRootItem_RestoresSectionAndItem()
+        {
+            var state = new BrowserNavigationState();
+            var angler = BrowserDestination.ForSection(BrowserSection.Angler);
+            var item = BrowserDestination.ForItem(2450);
+            state.Navigate(angler);
+            state.Navigate(item);
+
+            Assert.That(state.GoBack(), Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(angler));
+            Assert.That(state.CurrentDestination.Section, Is.EqualTo(BrowserSection.Angler));
+
+            Assert.That(state.GoForward(), Is.True);
+            Assert.That(state.CurrentDestination, Is.EqualTo(item));
+            Assert.That(state.CurrentDestination.Section, Is.EqualTo(BrowserSection.Items));
+        }
+
+        [Test]
         public void Navigate_ToArmorSetsRoot_UpdatesDestination()
         {
             AssertSectionRootNavigation(BrowserSection.ArmorSets, expectedChanged: true);
@@ -879,6 +969,13 @@ namespace TerrarianCompendium.Tests.Navigation
 
             Assert.That(state.GoForward(), Is.True);
             Assert.That(state.CurrentDestination, Is.EqualTo(secondItem));
+        }
+
+        [TestCase(0)]
+        [TestCase(-1)]
+        public void ForShimmerQuery_WithNonPositiveItemId_Throws(int itemId)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => BrowserDestination.ForShimmerQuery(itemId));
         }
 
         [TestCase(0)]

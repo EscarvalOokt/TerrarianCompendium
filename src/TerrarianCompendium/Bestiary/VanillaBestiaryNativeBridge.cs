@@ -310,6 +310,15 @@ namespace TerrarianCompendium.Bestiary
             return result;
         }
 
+        public static int? GetBannerItemId(NpcCatalogEntry catalogEntry)
+        {
+            if (catalogEntry == null)
+                throw new ArgumentNullException(nameof(catalogEntry));
+
+            NPC npc = CreateNpcSnapshot(catalogEntry.NetId, NpcDifficultyMode.Classic);
+            return GetBannerItemId(npc, out _);
+        }
+
         public static NpcBestiaryKillStatisticsSnapshot GetKillStatisticsSnapshot(NpcCatalogEntry catalogEntry)
         {
             if (catalogEntry == null)
@@ -328,9 +337,9 @@ namespace TerrarianCompendium.Bestiary
                 slainCount = Main.BestiaryTracker.Kills.GetKillCount(npc);
             }
 
-            int bannerId = BannerSystem.NPCtoBanner(npc.BannerID());
+            int? bannerItemId = GetBannerItemId(npc, out int bannerId);
 
-            if (bannerId <= 0)
+            if (!bannerItemId.HasValue)
             {
                 return new NpcBestiaryKillStatisticsSnapshot(
                     hasKillCounter,
@@ -340,8 +349,7 @@ namespace TerrarianCompendium.Bestiary
                     killsPerBanner: 0);
             }
 
-            int bannerItemId = BannerSystem.BannerToItem(bannerId);
-            int killsPerBanner = ItemID.Sets.KillsToBanner[bannerItemId];
+            int killsPerBanner = ItemID.Sets.KillsToBanner[bannerItemId.Value];
             int bannerKillCount = BannerSystem.GetKillCount(bannerId);
 
             return new NpcBestiaryKillStatisticsSnapshot(
@@ -374,6 +382,12 @@ namespace TerrarianCompendium.Bestiary
             }
 
             return dropRateInfo;
+        }
+
+        private static int? GetBannerItemId(NPC npc, out int bannerId)
+        {
+            bannerId = BannerSystem.NPCtoBanner(npc.BannerID());
+            return bannerId > 0 ? BannerSystem.BannerToItem(bannerId) : null;
         }
 
         private static NPC CreateNpcSnapshot(int npcNetId, NpcDifficultyMode difficulty)

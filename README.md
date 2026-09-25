@@ -6,20 +6,22 @@
 
 [Download on Nexus Mods](https://www.nexusmods.com/terraria/mods/245)
 
-Terrarian Compendium adds an in-game reference and collection browser for vanilla Terraria. Browse items, armor sets, recipes and NPCs in one window, with linked details that help you follow an ingredient to its source, a drop to its enemy, or an armor piece to its set.
+Terrarian Compendium adds an in-game reference and collection browser for vanilla Terraria. Browse items, armor sets, recipes, Shimmer transformations, NPCs and Angler quests in one window, with linked information that helps you follow an ingredient to its source, a Shimmer result to its transformation, a drop to its enemy, an armor piece to its set, or a quest reward to its item details.
 
 Use it to plan your next craft, look up an item, or work towards a complete collection. Your collection records what each character has found, even after those items leave your inventory.
 
 ## Features
 
-- Browse **Items**, **Armor Sets**, **Recipes** and **Bestiary** in a movable, resizable window with Back and Forward navigation.
+- Browse **Items**, **Armor Sets**, **Recipes**, **Shimmer**, **Bestiary** and **Angler** in a movable, resizable window with Back and Forward navigation.
 - Open supported vanilla slot items directly in the Compendium with **Alt+Right Click**, using the same Item navigation and history as the browser.
 - Search item and NPC names, narrow results with category and progress filters, and choose from several sorting options. Item search can also include descriptions.
 - Track your item collection for each character, spot missing items through silhouettes, and view Journey Mode research status. Fully researched items in the Compendium support native Journey duplication shortcuts.
 - Explore item sources: crafting, NPC drops, potential merchant stock, chests, pots, tree shaking, fishing, and possible contents of bags, crates and other openable items.
 - Check recipe ingredients, alternatives, crafting stations and other requirements. Open an item in **Recipes** to browse a contextual catalog of recipes that use it, save favorite recipes, filter by **Craftable Now**, and craft directly from item or recipe details.
+- Browse **Shimmer** by result item, open an item as a contextual Shimmer query when it is produced by or used in a transformation, and inspect direct-transform or decrafting variants with their progression, world and moon-phase conditions. Filter Shimmer results by **Collection**, **Research**, **Transformation** and **Progression**.
 - Look up armor set bonuses and valid combinations of armor pieces, including sets with multiple variants.
-- Browse NPC encounter progress, habitats, debuff immunities and item drops with their chances and conditions. NPC Details can also show native kill statistics and banner progress when available. Filter NPCs by Bestiary criteria, whether they have drops, missing collection drops, and—when Journey research is available—unresearched drops. Compare Classic, Expert and Master stats for your current world's progression.
+- Check the current **Angler** quest, whether it has been completed today, total completed quests, all milestone rewards, and the reward groups. Reward items link back into normal Item browsing.
+- Browse NPC encounter progress, habitats, debuff immunities and item drops with their chances and conditions. NPC Details can also show native kill statistics and banner progress when available. Filter NPCs by Bestiary criteria, including whether they have ordinary drops or a banner item, whether any of those items are missing from your collection, and—when Journey research is available—whether any are still unresearched. Compare Classic, Expert and Master stats for your current world's progression.
 
 ## Collection Tracking
 
@@ -32,6 +34,10 @@ Once an item is marked as found, it stays in that character's collection. Sellin
 Open an item or recipe, select **Craft**, then choose an available recipe. Hold its button to keep crafting. This uses your materials and follows Terraria's normal crafting requirements, including nearby stations and environmental conditions. Materials can come from your inventory and an open vanilla chest when Terraria allows it.
 
 Merchant stock lists show what an NPC can sell and the conditions attached to those items. Check those conditions when planning a purchase: an entry in the Compendium does not mean the merchant is selling it right now.
+
+## Shimmer
+
+Shimmer is a separate reference domain from ordinary Recipes. The section root lists potential result items rather than only what can transform in the current world state. Details show the producing transformation variants and their observable conditions, including progression, world-evil or moon-phase requirements where applicable. Recipe-backed decrafting can link to its ordinary recipe for reference, but Shimmer transformations are not treated as currently craftable recipes and the Compendium does not execute them.
 
 ## Settings
 
@@ -46,7 +52,7 @@ Press **F6** to open TerrariaModder's mod menu, then select **Terrarian Compendi
 - **Alt+Right Click** on a supported vanilla inventory-like slot — Open the hovered valid item in the Compendium. Supported surfaces are the main inventory, coin/ammo slots, an open chest or personal storage, equipment/vanity/dye/misc-equipment slots, and the current NPC shop.
 - **Alt+Left Click** on a fully researched Item inside the Compendium — Duplicate its native Journey stack.
 - **Alt+Right Click** on a fully researched Item inside the Compendium — Duplicate one Item; hold the button to repeat with Terraria's native cadence.
-- **Alt+Left Click** on the category up arrow in **Items** or **Recipes** — Return directly to that section's root.
+- **Alt+Left Click** on the category up arrow in **Items**, **Recipes** or **Shimmer** — Return directly to that section's root.
 
 You can rebind **Toggle Terrarian Compendium** in TerrariaModder's **F6** menu. The vanilla-slot **Alt+Right Click** navigation shortcut is fixed and is controlled by **Inventory Item Navigation**. That setting does not disable Journey duplication actions inside the Compendium.
 

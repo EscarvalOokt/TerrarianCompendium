@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using Terraria;
 using Terraria.GameContent.Creative;
 using TerrariaModder.Core.Logging;
+using TerrarianCompendium.Angler;
 using TerrarianCompendium.Catalog;
 using TerrarianCompendium.Checklist;
 using TerrarianCompendium.Crafting;
@@ -16,6 +17,7 @@ namespace TerrarianCompendium.Session
     {
         private const byte JourneyCharacterDifficulty = 3;
 
+        private readonly VanillaAnglerQuestStateScanner _anglerQuestStateScanner;
         private readonly CharacterProgressPathResolver _characterProgressPathResolver;
         private readonly ChecklistProgressStore _checklistProgressStore;
         private readonly VanillaCraftingAvailabilityScanner _craftingAvailabilityScanner;
@@ -26,7 +28,6 @@ namespace TerrarianCompendium.Session
         private readonly VanillaStorageDiscoveryScanner _vanillaStorageDiscoveryScanner;
         private string _checklistProgressPath;
         private bool _disposed;
-        private string _legacyChecklistProgressPath;
         private int _persistedFoundCount;
         private bool _persistencePreserveBackupOnNextSave;
         private bool _persistenceRewriteRequired;
@@ -34,6 +35,7 @@ namespace TerrarianCompendium.Session
 
         public BrowserSession(
             ItemCatalog catalog,
+            AnglerRewardCatalog anglerRewardCatalog,
             RecipeCatalog recipeCatalog,
             ChecklistProgressStore checklistProgressStore,
             CharacterProgressPathResolver characterProgressPathResolver,
@@ -52,6 +54,16 @@ namespace TerrarianCompendium.Session
             _logger = logger;
 
             ChecklistState = new ChecklistState(catalog);
+
+            if (anglerRewardCatalog != null)
+            {
+                var anglerQuestState = new AnglerQuestState();
+                _anglerQuestStateScanner = new VanillaAnglerQuestStateScanner(anglerRewardCatalog, anglerQuestState);
+                AnglerQuestModel = new AnglerQuestModel(catalog, anglerRewardCatalog, anglerQuestState);
+
+                if (initialPlayer != null)
+                    _anglerQuestStateScanner.Update(initialPlayer);
+            }
 
             RestoreChecklistProgress();
 
@@ -82,6 +94,8 @@ namespace TerrarianCompendium.Session
             }
         }
 
+        public AnglerQuestModel AnglerQuestModel { get; }
+
         public ChecklistState ChecklistState { get; }
 
         public CraftingAvailabilityState CraftingAvailabilityState { get; }
@@ -107,6 +121,7 @@ namespace TerrarianCompendium.Session
             if (player == null)
                 throw new ArgumentNullException(nameof(player));
 
+            _anglerQuestStateScanner?.Update(player);
             _journeyResearchDiscoveryScanner?.Update();
 
             Item[] inventory = player.inventory;
@@ -139,7 +154,6 @@ namespace TerrarianCompendium.Session
             }
 
             _checklistProgressPath = progressPath;
-            _legacyChecklistProgressPath = legacyProgressPath;
 
             ChecklistProgressLoadResult loadResult = _checklistProgressStore.LoadWithLegacyFallback(
                 progressPath,
@@ -188,7 +202,6 @@ namespace TerrarianCompendium.Session
         private void ResetPersistenceSession()
         {
             _checklistProgressPath = null;
-            _legacyChecklistProgressPath = null;
             _persistedFoundCount = 0;
             _persistencePreserveBackupOnNextSave = false;
             _persistenceRewriteRequired = false;

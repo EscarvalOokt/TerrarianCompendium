@@ -38,6 +38,7 @@ namespace TerrarianCompendium.Bestiary
         private static readonly IReadOnlyList<NpcCatalogEntry> _emptyEntries =
             new ReadOnlyCollection<NpcCatalogEntry>(new List<NpcCatalogEntry>());
 
+        private readonly Func<NpcCatalogEntry, int?> _bannerItemProvider;
         private readonly NpcCatalog _catalog;
         private readonly ChecklistState _checklistState;
         private readonly Func<NpcCatalogEntry, BestiaryEntryObservation> _entryObservationProvider;
@@ -76,6 +77,7 @@ namespace TerrarianCompendium.Bestiary
             VanillaBestiaryNativeBridge.CreateSearchMatcher(),
             CreateMetadataFilterMatcher(filterCatalog),
             VanillaBestiaryNativeBridge.SortEntries,
+            VanillaBestiaryNativeBridge.GetBannerItemId,
             checklistState,
             npcLootIndex,
             journeyResearchState,
@@ -90,6 +92,7 @@ namespace TerrarianCompendium.Bestiary
             Func<NpcCatalogEntry, string, bool> searchMatcher,
             Func<NpcCatalogEntry, int, bool> metadataFilterMatcher,
             Action<List<NpcCatalogEntry>, BestiarySortMode, BestiarySortDirection> sortEntries,
+            Func<NpcCatalogEntry, int?> bannerItemProvider,
             ChecklistState checklistState,
             NpcLootIndex npcLootIndex = null,
             JourneyResearchState journeyResearchState = null,
@@ -103,6 +106,7 @@ namespace TerrarianCompendium.Bestiary
             _metadataFilterMatcher = metadataFilterMatcher ??
                                      throw new ArgumentNullException(nameof(metadataFilterMatcher));
             _sortEntries = sortEntries ?? throw new ArgumentNullException(nameof(sortEntries));
+            _bannerItemProvider = bannerItemProvider ?? throw new ArgumentNullException(nameof(bannerItemProvider));
             _checklistState = checklistState ?? throw new ArgumentNullException(nameof(checklistState));
             _npcLootIndex = npcLootIndex;
             _journeyResearchState = journeyResearchState;
@@ -340,13 +344,13 @@ namespace TerrarianCompendium.Bestiary
                     return true;
 
                 case BestiaryFilterCriterionKind.HasDrops:
-                    return _npcLootIndex != null && _npcLootIndex.GetDropsForNpc(entry.NetId).Count > 0;
+                    return HasDrop(entry);
 
                 case BestiaryFilterCriterionKind.HasMissingDrops:
-                    return HasMissingDrop(entry.NetId);
+                    return HasMissingDrop(entry);
 
                 case BestiaryFilterCriterionKind.HasUnresearchedDrops:
-                    return HasUnresearchedDrop(entry.NetId);
+                    return HasUnresearchedDrop(entry);
 
                 default:
                     throw new ArgumentOutOfRangeException(
@@ -356,36 +360,49 @@ namespace TerrarianCompendium.Bestiary
             }
         }
 
-        private bool HasMissingDrop(int npcNetId)
+        private bool HasDrop(NpcCatalogEntry entry)
         {
-            if (_npcLootIndex == null)
-                return false;
+            if (_npcLootIndex != null && _npcLootIndex.GetDropsForNpc(entry.NetId).Count > 0)
+                return true;
 
-            IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(npcNetId);
-
-            foreach (NpcLootRelation relation in relations)
-            {
-                if (!_checklistState.IsFound(relation.ItemId))
-                    return true;
-            }
-
-            return false;
+            return _bannerItemProvider(entry).HasValue;
         }
 
-        private bool HasUnresearchedDrop(int npcNetId)
+        private bool HasMissingDrop(NpcCatalogEntry entry)
         {
-            if (_npcLootIndex == null || _journeyResearchState == null)
-                return false;
-
-            IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(npcNetId);
-
-            foreach (NpcLootRelation relation in relations)
+            if (_npcLootIndex != null)
             {
-                if (_journeyResearchState.IsUnresearched(relation.ItemId))
-                    return true;
+                IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(entry.NetId);
+
+                foreach (NpcLootRelation relation in relations)
+                {
+                    if (!_checklistState.IsFound(relation.ItemId))
+                        return true;
+                }
             }
 
-            return false;
+            int? bannerItemId = _bannerItemProvider(entry);
+            return bannerItemId.HasValue && !_checklistState.IsFound(bannerItemId.Value);
+        }
+
+        private bool HasUnresearchedDrop(NpcCatalogEntry entry)
+        {
+            if (_journeyResearchState == null)
+                return false;
+
+            if (_npcLootIndex != null)
+            {
+                IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(entry.NetId);
+
+                foreach (NpcLootRelation relation in relations)
+                {
+                    if (_journeyResearchState.IsUnresearched(relation.ItemId))
+                        return true;
+                }
+            }
+
+            int? bannerItemId = _bannerItemProvider(entry);
+            return bannerItemId.HasValue && _journeyResearchState.IsUnresearched(bannerItemId.Value);
         }
 
         private void NormalizeUnavailableDropCriterion()
