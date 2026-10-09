@@ -211,6 +211,7 @@ namespace TerrarianCompendium.UI
             SynchronizeCategoryNavigation();
 
             base.Update(gameTime);
+            SynchronizeEmptyStatePresentation();
         }
 
         public override void RecalculateChildren()
@@ -537,6 +538,17 @@ namespace TerrarianCompendium.UI
             }
         }
 
+        private void SynchronizeEmptyStatePresentation()
+        {
+            var presentation = BrowserEmptyStatePresentation.Create(
+                BrowserEmptyStateDomain.Items,
+                _filterModel.SearchQuery.Length > 0,
+                _filterModel.NavigationFilter != ChecklistNavigationFilter.AllItems,
+                _filterPopup.ActiveFilterCount > 0,
+                hasContextItem: false);
+            _itemGrid.EmptyStateText = presentation.Resolve(_localization);
+        }
+
         private void SynchronizeLocalization(bool force = false)
         {
             if (!force && _localizationRevision == _localization.Revision)
@@ -546,7 +558,7 @@ namespace TerrarianCompendium.UI
             _clearFiltersButton.TooltipText = _localization.Get(CompendiumTextKeys.Items.ClearFilters);
             _filterButton.TooltipText = _localization.Get(CompendiumTextKeys.Items.FiltersTooltip);
             _sortButton.TooltipText = _localization.Get(CompendiumTextKeys.Items.SortTooltip);
-            _itemGrid.EmptyStateText = _localization.Get(CompendiumTextKeys.Items.EmptyState);
+            SynchronizeEmptyStatePresentation();
             UpdateFilterControlsPresentation();
             UpdateSortControlsPresentation();
             SynchronizeCategoryNavigation();

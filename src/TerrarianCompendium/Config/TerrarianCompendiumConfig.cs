@@ -15,7 +15,8 @@ namespace TerrarianCompendium.Config
 
         [Client]
         [Label("Inventory Item Navigation")]
-        [Description("Open inventory items in Terrarian Compendium with Alt + Right Click.")]
+        [Description(
+            "Open hovered items from supported Terraria slots in Items (Alt + Right Click) or Recipes (Ctrl + Alt + Right Click).")]
         // ReSharper disable once UnusedAutoPropertyAccessor.Global
         public bool InventoryItemNavigationEnabled { get; set; } = true;
     }

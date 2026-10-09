@@ -193,7 +193,7 @@ namespace TerrarianCompendium.Tests.Recipes
         }
 
         [Test]
-        public void IsContextItemAvailable_ProducingIngredientAndUnrelatedItemsUseStaticRecipeRelations()
+        public void IsContextItemAvailable_AllKnownItemsAreValidContexts()
         {
             ItemCatalog catalog = CreateItemCatalog(
                 new ItemCatalogEntry(1, "Result"),
@@ -206,8 +206,27 @@ namespace TerrarianCompendium.Tests.Recipes
             {
                 Assert.That(model.IsContextItemAvailable(1), Is.True);
                 Assert.That(model.IsContextItemAvailable(2), Is.True);
-                Assert.That(model.IsContextItemAvailable(3), Is.False);
+                Assert.That(model.IsContextItemAvailable(3), Is.True);
                 Assert.That(model.IsContextItemAvailable(999), Is.False);
+            });
+        }
+
+        [Test]
+        public void HasNoRecipeRelations_DistinguishesUnrelatedItemsFromProducersAndIngredients()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Ingredient"),
+                new ItemCatalogEntry(3, "Unrelated"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, CreateItemIngredient(2)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(model.HasNoRecipeRelations(1), Is.False);
+                Assert.That(model.HasNoRecipeRelations(2), Is.False);
+                Assert.That(model.HasNoRecipeRelations(3), Is.True);
+                Assert.That(model.HasNoRecipeRelations(999), Is.False);
             });
         }
 
@@ -223,6 +242,7 @@ namespace TerrarianCompendium.Tests.Recipes
             RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
 
             Assert.That(model.IsContextItemAvailable(3), Is.True);
+            Assert.That(model.HasNoRecipeRelations(3), Is.False);
         }
 
         [Test]
@@ -338,6 +358,31 @@ namespace TerrarianCompendium.Tests.Recipes
         }
 
         [Test]
+        public void ContextItemId_KnownItemWithoutRelationsYieldsEmptyGridAndPreservesGlobalCatalog()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Ingredient"),
+                new ItemCatalogEntry(3, "Unrelated"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, CreateItemIngredient(2)));
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog);
+            IReadOnlyList<ItemCatalogEntry> global = model.MatchingItems;
+
+            model.ContextItemId = 3;
+            IReadOnlyList<ItemCatalogEntry> contextual = model.MatchingItems;
+            model.ContextItemId = null;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(model.IsContextItemAvailable(3), Is.True);
+                Assert.That(model.HasNoRecipeRelations(3), Is.True);
+                Assert.That(contextual, Is.Empty);
+                Assert.That(GetItemIds(global), Is.EqualTo([1]));
+                Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+            });
+        }
+
+        [Test]
         public void ContextItemId_EmptyUsedInProjectionDoesNotChangeGlobalOrContextAvailability()
         {
             ItemCatalog catalog = CreateItemCatalog(new ItemCatalogEntry(1, "Result"));
@@ -349,6 +394,7 @@ namespace TerrarianCompendium.Tests.Recipes
             Assert.That(model.MatchingItems, Is.Empty);
             Assert.That(model.IsItemAvailable(1), Is.True);
             Assert.That(model.IsContextItemAvailable(1), Is.True);
+            Assert.That(model.HasNoRecipeRelations(1), Is.False);
         }
 
         [Test]

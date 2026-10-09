@@ -127,10 +127,14 @@ namespace TerrarianCompendium.Recipes
 
         public bool IsContextItemAvailable(int itemId)
         {
-            if (!_catalog.TryGet(itemId, out _))
-                return false;
+            return _catalog.Contains(itemId);
+        }
 
-            return _recipeIndex.HasRecipeProducing(itemId) || _recipeIndex.GetRecipesUsing(itemId).Count > 0;
+        public bool HasNoRecipeRelations(int itemId)
+        {
+            return _catalog.Contains(itemId) &&
+                   !_recipeIndex.HasRecipeProducing(itemId) &&
+                   _recipeIndex.GetRecipesUsing(itemId).Count == 0;
         }
 
         public bool HasFavoriteRecipe(int itemId)

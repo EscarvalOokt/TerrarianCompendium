@@ -98,6 +98,14 @@ namespace TerrarianCompendium.UI
                 _host.Toggle();
         }
 
+        public void OpenRecipeQuery(int itemId)
+        {
+            _navigationState.Navigate(BrowserDestination.ForRecipeQuery(itemId));
+
+            if (!_host.IsOpen)
+                _host.Toggle();
+        }
+
         public void Close()
         {
             _host.Close();

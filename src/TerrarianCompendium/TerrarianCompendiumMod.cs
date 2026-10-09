@@ -28,7 +28,7 @@ namespace TerrarianCompendium
     {
         public const string ModId = "terrarian-compendium";
         public const string ModName = "Terrarian Compendium";
-        public const string ModVersion = "1.2.0";
+        public const string ModVersion = "1.3.0";
 
         private AnglerRewardCatalog _anglerRewardCatalog;
         private ArmorSetCatalog _armorSetCatalog;
@@ -654,6 +654,7 @@ namespace TerrarianCompendium
                     _itemCatalog,
                     IsInventoryItemNavigationEnabled,
                     _browserShell.OpenItem,
+                    _browserShell.OpenRecipeQuery,
                     _logger);
                 _inventoryItemNavigationHandler.Start();
             }

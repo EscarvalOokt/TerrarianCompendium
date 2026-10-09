@@ -1,7 +1,7 @@
 {
     "id": "terrarian-compendium",
     "name": "Terrarian Compendium",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "author": "Escarval",
     "description": "Tracks vanilla Terraria item collection progress per character and provides in-game Items, Armor Sets, Recipes, Shimmer, Bestiary, and Angler browsing with shared details where applicable and cross-navigation.",
     "entry_dll": "TerrarianCompendium.dll"

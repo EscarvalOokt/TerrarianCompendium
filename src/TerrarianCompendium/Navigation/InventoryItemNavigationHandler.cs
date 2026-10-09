@@ -9,10 +9,18 @@ using TerrarianCompendium.Catalog;
 
 namespace TerrarianCompendium.Navigation
 {
+    internal enum InventoryItemNavigationTarget
+    {
+        None,
+        Items,
+        Recipes
+    }
+
     internal sealed class InventoryItemNavigationHandler(
         ItemCatalog itemCatalog,
         Func<bool> isEnabled,
         Action<int> openItem,
+        Action<int> openRecipeQuery,
         ILogger logger)
     {
         private const string HarmonyId = "terrarian-compendium.navigation.inventory-items";
@@ -23,6 +31,10 @@ namespace TerrarianCompendium.Navigation
         private readonly ItemCatalog _itemCatalog = itemCatalog ?? throw new ArgumentNullException(nameof(itemCatalog));
         private readonly ILogger _logger = logger;
         private readonly Action<int> _openItem = openItem ?? throw new ArgumentNullException(nameof(openItem));
+
+        private readonly Action<int> _openRecipeQuery =
+            openRecipeQuery ?? throw new ArgumentNullException(nameof(openRecipeQuery));
+
         private bool _consumeRightClickUntilRelease;
         private Harmony _harmony;
         private MethodInfo _itemSlotHandleMethod;
@@ -78,6 +90,22 @@ namespace TerrarianCompendium.Navigation
             }
         }
 
+        internal static InventoryItemNavigationTarget ResolveTarget(
+            bool leftClick,
+            bool rightClick,
+            bool altHeld,
+            bool ctrlHeld,
+            bool shiftHeld)
+        {
+            if (!rightClick || !altHeld || shiftHeld)
+                return InventoryItemNavigationTarget.None;
+
+            if (!ctrlHeld)
+                return InventoryItemNavigationTarget.Items;
+
+            return leftClick ? InventoryItemNavigationTarget.None : InventoryItemNavigationTarget.Recipes;
+        }
+
         private static bool ItemSlotHandlePrefix(Item[] inv, int context, int slot, bool allowInteract)
         {
             InventoryItemNavigationHandler handler = _activeHandler;
@@ -111,21 +139,28 @@ namespace TerrarianCompendium.Navigation
             if (_consumeRightClickUntilRelease)
                 return false;
 
-            if (!rightClick ||
-                !_isEnabled() ||
-                !WidgetInput.IsAltHeld ||
-                WidgetInput.IsCtrlHeld ||
-                WidgetInput.IsShiftHeld ||
-                Main.LocalPlayerHasPendingInventoryActions())
-            {
+            InventoryItemNavigationTarget target = ResolveTarget(
+                WidgetInput.MouseLeftClick,
+                rightClick,
+                WidgetInput.IsAltHeld,
+                WidgetInput.IsCtrlHeld,
+                WidgetInput.IsShiftHeld);
+
+            if (target == InventoryItemNavigationTarget.None)
                 return true;
-            }
+
+            if (!_isEnabled() || Main.LocalPlayerHasPendingInventoryActions())
+                return true;
 
             Item item = inv[slot];
             if (item == null || item.IsAir || !_itemCatalog.Contains(item.type))
                 return true;
 
-            _openItem(item.type);
+            if (target == InventoryItemNavigationTarget.Recipes)
+                _openRecipeQuery(item.type);
+            else
+                _openItem(item.type);
+
             WidgetInput.ConsumeRightClick();
             _consumeRightClickUntilRelease = true;
             return false;

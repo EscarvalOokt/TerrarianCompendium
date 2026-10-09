@@ -55,6 +55,13 @@ namespace TerrarianCompendium.Localization
             public const string Close = "Common.Close";
             public const string Filters = "Common.Filters";
             public const string FiltersCount = "Common.FiltersCount";
+            public const string EmptyReasonCategory = "Common.EmptyReason.Category";
+            public const string EmptyReasonCategoryFilters = "Common.EmptyReason.CategoryFilters";
+            public const string EmptyReasonFilters = "Common.EmptyReason.Filters";
+            public const string EmptyReasonSearch = "Common.EmptyReason.Search";
+            public const string EmptyReasonSearchCategory = "Common.EmptyReason.SearchCategory";
+            public const string EmptyReasonSearchCategoryFilters = "Common.EmptyReason.SearchCategoryFilters";
+            public const string EmptyReasonSearchFilters = "Common.EmptyReason.SearchFilters";
             public const string Overall = "Common.Overall";
             public const string Filtered = "Common.Filtered";
             public const string Ascending = "Common.Ascending";
@@ -142,6 +149,7 @@ namespace TerrarianCompendium.Localization
         public static class Items
         {
             public const string EmptyState = "Items.EmptyState";
+            public const string EmptyStateNarrowed = "Items.EmptyState.Narrowed";
             public const string ClearFilters = "Items.ClearFilters";
             public const string FiltersTooltip = "Items.FiltersTooltip";
             public const string SortTooltip = "Items.SortTooltip";
@@ -253,8 +261,13 @@ namespace TerrarianCompendium.Localization
         public static class Recipes
         {
             public const string EmptyState = "Recipes.EmptyState";
+            public const string EmptyStateContext = "Recipes.EmptyState.Context";
+            public const string EmptyStateContextNarrowed = "Recipes.EmptyState.ContextNarrowed";
+            public const string EmptyStateNarrowed = "Recipes.EmptyState.Narrowed";
+            public const string EmptyStateNoRelations = "Recipes.EmptyState.NoRelations";
             public const string ShowFavorites = "Recipes.ShowFavorites";
             public const string ShowAll = "Recipes.ShowAll";
+            public const string DisableFavoritesFilter = "Recipes.DisableFavoritesFilter";
             public const string ClearFilters = "Recipes.ClearFilters";
             public const string FiltersTooltip = "Recipes.FiltersTooltip";
             public const string ByHand = "Recipes.Filter.ByHand";
@@ -280,6 +293,7 @@ namespace TerrarianCompendium.Localization
             public const string CraftingStation = "Recipes.Requirement.CraftingStation";
             public const string MissingRecipe = "Recipes.Details.MissingRecipe";
             public const string NoMatchingRecipe = "Recipes.Details.NoMatchingRecipe";
+            public const string NoProducingRecipe = "Recipes.Details.NoProducingRecipe";
             public const string RecipeVariant = "Recipes.Details.RecipeVariant";
             public const string MatchingCount = "Recipes.Details.MatchingCount";
             public const string Crafting = "Recipes.Details.Crafting";
@@ -298,6 +312,9 @@ namespace TerrarianCompendium.Localization
         public static class Shimmer
         {
             public const string EmptyState = "Shimmer.EmptyState";
+            public const string EmptyStateContext = "Shimmer.EmptyState.Context";
+            public const string EmptyStateContextNarrowed = "Shimmer.EmptyState.ContextNarrowed";
+            public const string EmptyStateNarrowed = "Shimmer.EmptyState.Narrowed";
             public const string ShowAll = "Shimmer.ShowAll";
             public const string ClearFilters = "Shimmer.ClearFilters";
             public const string FiltersTooltip = "Shimmer.FiltersTooltip";
@@ -350,6 +367,7 @@ namespace TerrarianCompendium.Localization
         public static class Bestiary
         {
             public const string EmptyState = "Bestiary.EmptyState";
+            public const string EmptyStateNarrowed = "Bestiary.EmptyState.Narrowed";
             public const string ClearFilters = "Bestiary.ClearFilters";
             public const string FiltersTooltip = "Bestiary.FiltersTooltip";
             public const string SortTooltip = "Bestiary.SortTooltip";

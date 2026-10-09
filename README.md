@@ -13,11 +13,12 @@ Use it to plan your next craft, look up an item, or work towards a complete coll
 ## Features
 
 - Browse **Items**, **Armor Sets**, **Recipes**, **Shimmer**, **Bestiary** and **Angler** in a movable, resizable window with Back and Forward navigation.
-- Open supported vanilla slot items directly in the Compendium with **Alt+Right Click**, using the same Item navigation and history as the browser.
+- Open supported vanilla slot items in **Items** with **Alt+Right Click**, or open them as contextual **Recipes** queries with **Ctrl+Alt+Right Click**, using the same browser navigation and history.
 - Search item and NPC names, narrow results with category and progress filters, and choose from several sorting options. Item search can also include descriptions.
 - Track your item collection for each character, spot missing items through silhouettes, and view Journey Mode research status. Fully researched items in the Compendium support native Journey duplication shortcuts.
 - Explore item sources: crafting, NPC drops, potential merchant stock, chests, pots, tree shaking, fishing, and possible contents of bags, crates and other openable items.
 - Check recipe ingredients, alternatives, crafting stations and other requirements. Open an item in **Recipes** to browse a contextual catalog of recipes that use it, save favorite recipes, filter by **Craftable Now**, and craft directly from item or recipe details.
+- Context-aware empty states in **Items**, **Recipes**, **Shimmer** and **Bestiary** explain the relevant narrowing conditions. Recipe Details distinguishes items without producing recipes from producing variants hidden by filters.
 - Browse **Shimmer** by result item, open an item as a contextual Shimmer query when it is produced by or used in a transformation, and inspect direct-transform or decrafting variants with their progression, world and moon-phase conditions. Filter Shimmer results by **Collection**, **Research**, **Transformation** and **Progression**.
 - Look up armor set bonuses and valid combinations of armor pieces, including sets with multiple variants.
 - Check the current **Angler** quest, whether it has been completed today, total completed quests, all milestone rewards, and the reward groups. Reward items link back into normal Item browsing.
@@ -35,6 +36,8 @@ Open an item or recipe, select **Craft**, then choose an available recipe. Hold 
 
 Merchant stock lists show what an NPC can sell and the conditions attached to those items. Check those conditions when planning a purchase: an entry in the Compendium does not mean the merchant is selling it right now.
 
+A known Item without producing or using recipe relations can still be opened in contextual **Recipes**; an empty-state message explains the absence of relations. Search, category and recipe filters are preserved across contextual navigation. Disabling the **Favorites-only** filter removes only that filter, without deleting saved favorites or clearing other browsing criteria.
+
 ## Shimmer
 
 Shimmer is a separate reference domain from ordinary Recipes. The section root lists potential result items rather than only what can transform in the current world state. Details show the producing transformation variants and their observable conditions, including progression, world-evil or moon-phase requirements where applicable. Recipe-backed decrafting can link to its ordinary recipe for reference, but Shimmer transformations are not treated as currently craftable recipes and the Compendium does not execute them.
@@ -44,17 +47,18 @@ Shimmer is a separate reference domain from ordinary Recipes. The section root l
 Press **F6** to open TerrariaModder's mod menu, then select **Terrarian Compendium**.
 
 - **Storage Discovery** — Mark items as found while supported vanilla storage is open. Enabled by default.
-- **Inventory Item Navigation** — Allow **Alt+Right Click** to open supported vanilla slot items in the Compendium. Enabled by default.
+- **Inventory Item Navigation** — Enable both external item actions: **Alt+Right Click** for Items and **Ctrl+Alt+Right Click** for contextual Recipes. Enabled by default; disabling it turns off both shortcuts.
 
 ## Controls
 
 - **Alt+I** — Open or close Terrarian Compendium while in a world.
-- **Alt+Right Click** on a supported vanilla inventory-like slot — Open the hovered valid item in the Compendium. Supported surfaces are the main inventory, coin/ammo slots, an open chest or personal storage, equipment/vanity/dye/misc-equipment slots, and the current NPC shop.
+- **Alt+Right Click** on a supported vanilla inventory-like slot — Open the hovered valid Item in **Items**. Supported surfaces are the main inventory, coin/ammo slots, an open chest or personal storage, equipment/vanity/dye/misc-equipment slots, and the current NPC shop.
+- **Ctrl+Alt+Right Click** on the same supported slots — Open the hovered valid Item as a contextual query in **Recipes**, including Items with no recipe relations.
 - **Alt+Left Click** on a fully researched Item inside the Compendium — Duplicate its native Journey stack.
 - **Alt+Right Click** on a fully researched Item inside the Compendium — Duplicate one Item; hold the button to repeat with Terraria's native cadence.
 - **Alt+Left Click** on the category up arrow in **Items**, **Recipes** or **Shimmer** — Return directly to that section's root.
 
-You can rebind **Toggle Terrarian Compendium** in TerrariaModder's **F6** menu. The vanilla-slot **Alt+Right Click** navigation shortcut is fixed and is controlled by **Inventory Item Navigation**. That setting does not disable Journey duplication actions inside the Compendium.
+You can rebind **Toggle Terrarian Compendium** in TerrariaModder's **F6** menu. Both vanilla-slot navigation shortcuts are fixed and controlled together by **Inventory Item Navigation**. That setting does not disable Journey duplication actions inside the Compendium.
 
 ## Requirements
 
@@ -82,7 +86,7 @@ Close Terraria and remove the `terrarian-compendium` mod folder to disable its i
 
 ### Multiplayer
 
-The interface and collection tracking belong to the local player. Collection records and recipe favorites are not shared between players. Host & Play has been tested, including crafting from inventory and an open vanilla chest. Other multiplayer setups have not been fully verified.
+The interface and collection tracking belong to the local player. Collection records and recipe favorites are not shared between players. Host & Play was validated for the 1.3.0 release candidate, including crafting from inventory and an open vanilla chest. Other multiplayer setups have not been fully verified.
 
 ### Saved progress
 

@@ -150,6 +150,7 @@ namespace TerrarianCompendium.UI
             UpdateFilterControlsPresentation();
             UpdateSortControlsPresentation();
             base.Update(gameTime);
+            SynchronizeEmptyStatePresentation();
         }
 
         public override void RecalculateChildren()
@@ -358,6 +359,17 @@ namespace TerrarianCompendium.UI
                 ratio * 100.0);
         }
 
+        private void SynchronizeEmptyStatePresentation()
+        {
+            var presentation = BrowserEmptyStatePresentation.Create(
+                BrowserEmptyStateDomain.Bestiary,
+                _model.SearchQuery.Length > 0,
+                hasCategory: false,
+                hasFilters: _filterState.ActiveFilterCount > 0,
+                hasContextItem: false);
+            _npcGrid.EmptyStateText = presentation.Resolve(_localization);
+        }
+
         private void SynchronizeLocalization(bool force = false)
         {
             if (!force && _localizationRevision == _localization.Revision)
@@ -367,7 +379,7 @@ namespace TerrarianCompendium.UI
             _clearFiltersButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.ClearFilters);
             _filterButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.FiltersTooltip);
             _sortButton.TooltipText = _localization.Get(CompendiumTextKeys.Bestiary.SortTooltip);
-            _npcGrid.EmptyStateText = _localization.Get(CompendiumTextKeys.Bestiary.EmptyState);
+            SynchronizeEmptyStatePresentation();
             UpdateFilterControlsPresentation();
             UpdateSortControlsPresentation();
             Recalculate();

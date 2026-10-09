@@ -140,6 +140,11 @@ namespace TerrarianCompendium.Details
             return true;
         }
 
+        public bool IsQueryItemWithoutProducingRecipe(int itemId)
+        {
+            return _itemCatalog.Contains(itemId) && !_recipeIndex.HasRecipeProducing(itemId);
+        }
+
         public bool TryGetQueryProjection(int resultItemId, out RecipeQueryDetailsProjection projection)
         {
             IReadOnlyList<RecipeCatalogEntry> recipes = _recipeIndex.GetRecipesProducing(resultItemId);

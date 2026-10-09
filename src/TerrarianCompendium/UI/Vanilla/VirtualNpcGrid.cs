@@ -12,7 +12,6 @@ namespace TerrarianCompendium.UI.Vanilla
 {
     internal sealed class VirtualNpcGrid : UIElement
     {
-        private const int TextHeight = 16;
         private readonly Dictionary<int, BestiaryEntry> _entriesByNetId = new();
         private readonly Func<int, bool> _isSelected;
 
@@ -64,17 +63,29 @@ namespace TerrarianCompendium.UI.Vanilla
             CalculatedStyle dimensions = GetDimensions();
             int width = Math.Max(0, (int)dimensions.Width);
             int height = Math.Max(_scroll.ViewportHeight, (int)dimensions.Height);
+            int contentWidth = EmptyStateTextLayout.CalculateContentWidth(width);
 
-            string display = TruncatedTextPresentation.Truncate(_emptyStateText, width, out _);
-
-            if (display.Length == 0)
+            if (contentWidth <= 0)
                 return;
 
-            int textWidth = UIRenderer.MeasureText(display);
-            int textX = (int)dimensions.X + Math.Max(0, (width - textWidth) / 2);
-            int textY = (int)dimensions.Y + Math.Max(0, (height - TextHeight) / 2);
+            IReadOnlyList<string> lines = SupplementalTooltip.WrapText(
+                _emptyStateText,
+                contentWidth,
+                UIRenderer.MeasureText);
 
-            UIRenderer.DrawText(display, textX, textY, UIColors.TextDim);
+            if (lines.Count == 0)
+                return;
+
+            int blockTop = EmptyStateTextLayout.CalculateBlockTop(height, lines.Count);
+
+            for (var index = 0; index < lines.Count; index++)
+            {
+                string line = lines[index];
+                int textWidth = UIRenderer.MeasureText(line);
+                int textX = (int)dimensions.X + EmptyStateTextLayout.CalculateLineLeft(width, textWidth);
+                int textY = (int)dimensions.Y + EmptyStateTextLayout.CalculateLineTop(blockTop, index);
+                UIRenderer.DrawText(line, textX, textY, UIColors.TextDim);
+            }
         }
 
         private void BindVisibleSlots()

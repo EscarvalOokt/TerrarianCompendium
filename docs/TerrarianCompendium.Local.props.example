@@ -2,8 +2,6 @@
     <PropertyGroup>
         <!--
         Set this to the root directory of your local Terraria installation.
-        Example:
-        E:\SteamLibrary\steamapps\common\Terraria
         -->
         <TerrariaDirectory>C:\Path\To\Terraria</TerrariaDirectory>
 

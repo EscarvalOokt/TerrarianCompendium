@@ -208,6 +208,7 @@ namespace TerrarianCompendium.UI
             SynchronizeNavigation();
             SynchronizeCategoryPresentation();
             SynchronizeFilterControlState();
+            SynchronizeEmptyStatePresentation();
         }
 
         private void OnSearchContentsChanged(string contents)
@@ -363,6 +364,17 @@ namespace TerrarianCompendium.UI
             _filterButton.IsActive = _filterPopover.IsOpen || filterCount > 0;
         }
 
+        private void SynchronizeEmptyStatePresentation()
+        {
+            var presentation = BrowserEmptyStatePresentation.Create(
+                BrowserEmptyStateDomain.Shimmer,
+                _model.SearchQuery.Length > 0,
+                _model.NavigationFilter != ChecklistNavigationFilter.AllItems,
+                _filterState.IsActive,
+                _model.ContextItemId.HasValue);
+            _itemGrid.EmptyStateText = presentation.Resolve(_localization);
+        }
+
         private void SynchronizeLocalization(bool force = false)
         {
             if (!force && _localizationRevision == _localization.Revision)
@@ -371,7 +383,7 @@ namespace TerrarianCompendium.UI
             _localizationRevision = _localization.Revision;
             _clearFiltersButton.TooltipText = _localization.Get(CompendiumTextKeys.Shimmer.ClearFilters);
             _filterButton.TooltipText = _localization.Get(CompendiumTextKeys.Shimmer.FiltersTooltip);
-            _itemGrid.EmptyStateText = _localization.Get(CompendiumTextKeys.Shimmer.EmptyState);
+            SynchronizeEmptyStatePresentation();
             SynchronizeCategoryPresentation();
             UpdateFilterControlsPresentation();
             Recalculate();

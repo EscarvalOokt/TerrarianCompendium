@@ -614,6 +614,48 @@ namespace TerrarianCompendium.Tests.Details
         }
 
         [Test]
+        public void IsQueryItemWithoutProducingRecipe_ItemUsedButNotProduced_ReturnsTrue()
+        {
+            ItemCatalog itemCatalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1, CreateItemIngredient(2, 1)));
+            RecipeDetailsModel model = CreateModel(itemCatalog, recipeCatalog);
+
+            Assert.That(model.IsQueryItemWithoutProducingRecipe(2), Is.True);
+        }
+
+        [Test]
+        public void IsQueryItemWithoutProducingRecipe_ItemAlsoProduced_ReturnsFalse()
+        {
+            ItemCatalog itemCatalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Other Result"),
+                new ItemCatalogEntry(2, "Produced Ingredient"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntry(0, 2),
+                CreateRecipeEntry(1, 1, CreateItemIngredient(2, 1)));
+            RecipeDetailsModel model = CreateModel(itemCatalog, recipeCatalog);
+
+            Assert.That(model.IsQueryItemWithoutProducingRecipe(2), Is.False);
+        }
+
+        [Test]
+        public void IsQueryItemWithoutProducingRecipe_UnrelatedKnownItemIsTrueAndUnknownIsFalse()
+        {
+            ItemCatalog itemCatalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Result"),
+                new ItemCatalogEntry(2, "Unrelated"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(CreateRecipeEntry(0, 1));
+            RecipeDetailsModel model = CreateModel(itemCatalog, recipeCatalog);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(model.IsQueryItemWithoutProducingRecipe(2), Is.True);
+                Assert.That(model.IsQueryItemWithoutProducingRecipe(999), Is.False);
+            });
+        }
+
+        [Test]
         public void TryGetQueryProjection_UnknownResult_ReturnsFalse()
         {
             ItemCatalog itemCatalog = CreateItemCatalog(new ItemCatalogEntry(1, "Result"));

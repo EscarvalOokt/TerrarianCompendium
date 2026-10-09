@@ -200,11 +200,22 @@ namespace TerrarianCompendium.UI
 
             if (_projection == null)
             {
-                string message = _localization.Get(
-                    _queryProjection is { MatchingRecipeCount: 0 }
-                        ? CompendiumTextKeys.Recipes.NoMatchingRecipe
-                        : CompendiumTextKeys.Recipes.MissingRecipe);
-                DrawTextRow(message, x, y, width, UIColors.TextDim);
+                string messageKey;
+
+                if (_queryProjection is { MatchingRecipeCount: 0 })
+                {
+                    messageKey = CompendiumTextKeys.Recipes.NoMatchingRecipe;
+                }
+                else if (_queryItemId > 0 && _model.IsQueryItemWithoutProducingRecipe(_queryItemId))
+                {
+                    messageKey = CompendiumTextKeys.Recipes.NoProducingRecipe;
+                }
+                else
+                {
+                    messageKey = CompendiumTextKeys.Recipes.MissingRecipe;
+                }
+
+                DrawTextRow(_localization.Get(messageKey), x, y, width, UIColors.TextDim);
                 return;
             }
 

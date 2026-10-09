@@ -258,6 +258,7 @@ namespace TerrarianCompendium.UI
             SynchronizeNavigation();
             SynchronizeCategoryPresentation();
             UpdateFilterControlsPresentation();
+            SynchronizeEmptyStatePresentation();
         }
 
         private void OnSearchContentsChanged(string contents)
@@ -420,13 +421,27 @@ namespace TerrarianCompendium.UI
             _favoritesButton.IsActive = _filterState.FavoritesOnly;
             _favoritesButton.TooltipText = _localization.Get(
                 _filterState.FavoritesOnly
-                    ? CompendiumTextKeys.Recipes.ShowAll
+                    ? CompendiumTextKeys.Recipes.DisableFavoritesFilter
                     : CompendiumTextKeys.Recipes.ShowFavorites);
             _clearFiltersButton.IsEnabled = _filterState.IsActive;
             _filterButton.Text = popupFilterCount == 0
                 ? _localization.Get(CompendiumTextKeys.Common.Filters)
                 : _localization.Format(CompendiumTextKeys.Common.FiltersCount, popupFilterCount);
             _filterButton.IsActive = _filterPopover.IsOpen || popupFilterCount > 0;
+        }
+
+        private void SynchronizeEmptyStatePresentation()
+        {
+            int? contextItemId = _model.ContextItemId;
+            var presentation = BrowserEmptyStatePresentation.Create(
+                BrowserEmptyStateDomain.Recipes,
+                _model.SearchQuery.Length > 0,
+                _model.NavigationFilter != ChecklistNavigationFilter.AllItems,
+                _filterState.IsActive,
+                contextItemId.HasValue,
+                contextHasNoRecipeRelations: contextItemId.HasValue &&
+                                             _model.HasNoRecipeRelations(contextItemId.Value));
+            _itemGrid.EmptyStateText = presentation.Resolve(_localization);
         }
 
         private void SynchronizeLocalization(bool force = false)
@@ -437,7 +452,7 @@ namespace TerrarianCompendium.UI
             _localizationRevision = _localization.Revision;
             _clearFiltersButton.TooltipText = _localization.Get(CompendiumTextKeys.Recipes.ClearFilters);
             _filterButton.TooltipText = _localization.Get(CompendiumTextKeys.Recipes.FiltersTooltip);
-            _itemGrid.EmptyStateText = _localization.Get(CompendiumTextKeys.Recipes.EmptyState);
+            SynchronizeEmptyStatePresentation();
             SynchronizeCategoryNavigation();
             UpdateFilterControlsPresentation();
             Recalculate();

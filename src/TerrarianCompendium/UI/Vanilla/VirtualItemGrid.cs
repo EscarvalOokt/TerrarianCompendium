@@ -4,7 +4,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
-using TerrariaModder.Core.UI.Widgets;
 using TerrarianCompendium.Catalog;
 using TerrarianCompendium.Journey;
 using ItemTooltip = TerrariaModder.Core.UI.Widgets.ItemTooltip;
@@ -77,15 +76,29 @@ namespace TerrarianCompendium.UI.Vanilla
             CalculatedStyle dimensions = GetDimensions();
             int width = Math.Max(0, (int)dimensions.Width);
             int height = Math.Max(_scroll.ViewportHeight, (int)dimensions.Height);
-            string display = TextUtil.Truncate(_emptyStateText, width);
+            int contentWidth = EmptyStateTextLayout.CalculateContentWidth(width);
 
-            if (display.Length == 0)
+            if (contentWidth <= 0)
                 return;
 
-            int textWidth = UIRenderer.MeasureText(display);
-            int textX = (int)dimensions.X + Math.Max(0, (width - textWidth) / 2);
-            int textY = (int)dimensions.Y + Math.Max(0, (height - TextHeight) / 2);
-            UIRenderer.DrawText(display, textX, textY, UIColors.TextDim);
+            IReadOnlyList<string> lines = SupplementalTooltip.WrapText(
+                _emptyStateText,
+                contentWidth,
+                UIRenderer.MeasureText);
+
+            if (lines.Count == 0)
+                return;
+
+            int blockTop = EmptyStateTextLayout.CalculateBlockTop(height, lines.Count);
+
+            for (var index = 0; index < lines.Count; index++)
+            {
+                string line = lines[index];
+                int textWidth = UIRenderer.MeasureText(line);
+                int textX = (int)dimensions.X + EmptyStateTextLayout.CalculateLineLeft(width, textWidth);
+                int textY = (int)dimensions.Y + EmptyStateTextLayout.CalculateLineTop(blockTop, index);
+                UIRenderer.DrawText(line, textX, textY, UIColors.TextDim);
+            }
         }
 
         private void BindVisibleSlots()
