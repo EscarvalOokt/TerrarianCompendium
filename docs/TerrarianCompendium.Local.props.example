@@ -12,7 +12,7 @@
         <XnaFrameworkDll>C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.dll</XnaFrameworkDll>
 
         <!--
-        Terraria 1.4.5.8 / TerrariaModder 0.4.1 development requires the XNA Framework Game reference.
+        Terrarian Compendium development for Terraria 1.4.5.8 requires the XNA Framework Game reference.
         This is the common Windows GAC location; update it if your installation differs.
         -->
         <XnaFrameworkGameDll>C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework.Game\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Game.dll</XnaFrameworkGameDll>

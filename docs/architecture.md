@@ -15,6 +15,26 @@ When documentation and production code disagree about current project behavior, 
 
 Implementation order and unresolved product decisions are outside the scope of this architecture specification.
 
+## Contents
+
+- [Sources of truth](#sources-of-truth)
+- [Product scope](#product-scope)
+- [Current compatibility contract](#current-compatibility-contract)
+- [Current implementation baseline](#current-implementation-baseline)
+- [Composition and lifecycle](#composition-and-lifecycle)
+- [Ownership and lifetime boundaries](#ownership-and-lifetime-boundaries)
+- [Localization architecture](#localization-architecture)
+- [Item architecture](#item-architecture)
+- [Armor Set architecture](#armor-set-architecture)
+- [Recipe architecture](#recipe-architecture)
+- [Shimmer architecture](#shimmer-architecture)
+- [Bestiary architecture](#bestiary-architecture)
+- [Browser navigation and Details](#browser-navigation-and-details)
+- [UI foundation and hosting boundary](#ui-foundation-and-hosting-boundary)
+- [Persistence ownership](#persistence-ownership)
+- [Deferred architecture boundary](#deferred-architecture-boundary)
+- [Testing boundary](#testing-boundary)
+
 ## Product scope
 
 The current product scope is a vanilla Terraria compendium centered on:
@@ -42,7 +62,7 @@ The following are not required for the current scope:
 
 ## Current compatibility contract
 
-The current compatibility boundary is frozen to Terraria 1.4.5.8, TerrariaModder Core 0.4.1, .NET Framework 4.8, and the vanilla-only product scope described above. Moving to another Terraria/TerrariaModder target or changing these compatibility guarantees requires a separate compatibility decision and revalidation.
+The current development configuration targets Terraria 1.4.5.8, TerrariaModder Core 0.4.2, and .NET Framework 4.8 within the vanilla-only product scope described above. This identifies the current target, not a compatibility guarantee for a range of Core versions. Moving to another Terraria/TerrariaModder target or expanding compatibility guarantees requires a separate decision and revalidation.
 
 Persistence and migration contracts:
 
@@ -56,7 +76,7 @@ Multiplayer/runtime ownership contracts:
 - browser/session/filter/navigation state remains client-owned, and the dedicated-server composition does not create the browser session/UI stack;
 - Terrarian Compendium does not introduce a separate synchronization protocol for collection, favorites, navigation, filters, or other browser-owned state;
 - `CraftingAvailabilityState` is a local active-player runtime projection rather than persisted or project-networked state;
-- direct crafting performs project validation and delegates execution to Terraria's `CraftingRequests` path; Host & Play runtime acceptance covers inventory-only and currently open vanilla chest contexts for this target;
+- direct crafting performs project validation and delegates execution to Terraria's `CraftingRequests` path; release-candidate Host & Play acceptance must cover inventory-only and currently open vanilla chest contexts for this target;
 - Terraria-owned Journey, Bestiary, and Angler quest/progress state is consumed through native runtime contracts and is not duplicated into a parallel Terrarian Compendium persistence/network layer.
 
 Merchant compatibility contract:
@@ -71,7 +91,7 @@ These boundaries are part of the current architecture. Expanding them requires a
 
 The current implementation provides the following architecture-relevant baseline:
 
-- product/package/project identity `Terrarian Compendium` / `terrarian-compendium` / `TerrarianCompendium` on .NET Framework 4.8, targeting Terraria 1.4.5.8 and TerrariaModder Core 0.4.1;
+- product/package/project identity `Terrarian Compendium` / `terrarian-compendium` / `TerrarianCompendium`, development version `1.4.0`, on .NET Framework 4.8, targeting Terraria 1.4.5.8 and TerrariaModder Core 0.4.2;
 - immutable content-lifetime Item, Armor Set, Recipe, Shimmer transformation, NPC, Angler reward, acquisition, taxonomy, sorting, and persistent-recipe-identity data, replaced as complete snapshots when refresh is required;
 - per-character collection state with versioned sidecar persistence, controlled legacy migration, validated-backup recovery, discovery from supported player/storage sources, and optional Terraria-owned Journey integration;
 - a production Item Browser with independent navigation/search/taxonomy/completion/research/crafting/NPC-drop/merchant-source filters, eight taxonomy facets, deterministic sorting, localized Item text, and compact Item Details backed by immutable Details-only base stat metadata and shared icon/value/coin presentation;
@@ -85,7 +105,7 @@ The current implementation provides the following architecture-relevant baseline
 - a shared `BrowserNavigationState` with typed Item, Armor Set, Recipe-query, exact Recipe, Shimmer-query, NPC, and section-root destinations plus runtime Back/Forward history;
 - optional vanilla Item-slot navigation gated by one client-side `Inventory Item Navigation` setting: fixed `Alt + Right Click` opens an ordinary Item destination, while `Ctrl + Alt + Right Click` opens a contextual Recipe-query destination for a catalog Item. Both actions reuse the same navigation owner on supported inventory/storage/equipment/shop surfaces and consume accepted RMB input before native `ItemSlot.Handle(...)` processing through physical release;
 - a shared `BrowserDetailsSurface` that hosts separate domain-specific Item, Armor Set, Recipe, Shimmer, and NPC projections rather than a universal Details model; the Angler section root uses the section surface directly and does not add an Angler-specific Details projection;
-- one shared Vanilla/Core UI host adapter for Terraria retained UI inside TerrariaModder-owned lifecycle, panel, input, tooltip, and top-level integration boundaries;
+- one pinnable TerrariaWindowKit-managed root window with coordinated Escape/wheel input; Compendium retains its Vanilla UI content, text focus, transient surfaces, widget-level input and localized Pin/Unpin control;
 - revision-based invalidation for mutable session/browser owners and deterministic projections, while static relations remain in dedicated immutable catalogs/indices;
 - project-owned player-facing browser text externalized through embedded locale resources, with `en-US` as the source/fallback locale, `ru-RU` as the current release translation, and culture changes exposed through a localization revision consumed by UI/model projections;
 - project-owned automated tests for deterministic contracts, with Terraria/TerrariaModder/XNA semantics validated through runtime acceptance.
@@ -111,6 +131,8 @@ Its responsibilities include:
 Content structures that do not depend on the active character/world remain retained where the current implementation already treats them as content-lifetime data. Mutable character/world/runtime progress remains session-owned. Mutable browser-query/filter state has an explicit browser-composition owner rather than being moved into immutable catalogs or navigation destinations.
 
 A separate dependency-injection container is not required by the current architecture.
+
+On the client, `BrowserShell` retains the browser composition for the world session. `VanillaUiHost` constructs its native `UserInterface` and `BrowserUiState` independently of the root registration; `WindowHost` and `CoreWindowBackend` are created when the shell first registers or opens. Ordinary closing detaches native UI without destroying navigation, filters or the window's fitted bounds; reopening reuses the same session owners. World/mod teardown stops the scoped navigation handler, disposes the host and native content before the backend, then destroys the browser session. Dedicated-server composition does not create the browser UI.
 
 ## Ownership and lifetime boundaries
 
@@ -503,31 +525,27 @@ The shared surface owns host-level presentation concerns such as the Details fra
 
 ## UI foundation and hosting boundary
 
-The production browser uses Vanilla Terraria retained UI as its composition foundation:
+The production browser retains Vanilla Terraria UI composition while using the source-only TerrariaWindowKit root-window infrastructure. Ownership is divided as follows:
 
-- `UserInterface` / `UIState` / `UIElement` provide the retained hierarchy and state lifecycle;
-- Vanilla layout, clipping, scrolling, and native text-input primitives provide browser composition behavior;
-- TerrariaModder remains the framework authority for mod lifecycle, configuration, logging, keybinds, top-level draw/panel integration, shared UI colors, and deferred tooltip services.
+| Layer | Responsibility |
+| --- | --- |
+| TerrariaModder Core 0.4.2 | Mod lifecycle, config, logging, keybinds, Core UI services, shared styles/colors, tooltip services, and the renderer/input APIs used by the adapter. |
+| TerrariaWindowKit | Root registration, open/close/disposal, activation and Core draw/bounds ownership, fitted geometry, drag/resize, pin state, Escape arbitration and shared coordination of participating windows. |
+| Terrarian Compendium | Vanilla `UserInterface` hierarchy, browser composition and navigation, header/button/grip hit testing, native widget input, text focus, transient popovers and tooltip content, and delivery of wheel input to the owned widgets. |
 
-Terrarian Compendium owns one shared Vanilla/Core host adapter between those layers. `VanillaUiHost` is infrastructure, not a domain owner. Browser destinations, catalogs, session state, deterministic projections, and domain-specific view models remain outside the renderer/host boundary.
+`TerrarianCompendium.csproj` imports `TerrariaWindowKit.Source.projitems` from a sibling `TerrariaWindowKit` checkout, with `TerrariaWindowKitIncludeCore=true`. Sources compile into the Compendium assembly; there is no separate runtime toolkit DLL. The current `1.4.0` development baseline uses TerrariaWindowKit `v1.1.0`; the project import does not pin a tag or commit, so the actual checkout must still be identified for a build or candidate. WindowKit is MIT-licensed; its source/API contracts belong to the toolkit project, not to Compendium documentation. Independently compiled consumers require compatible coordinator protocol and Core runtime signatures to share the framework runtime.
+
+`VanillaUiHost` is the single infrastructure adapter between these layers, not a domain owner. It connects through `SharedCoordinator`, creates `CoreWindowBackend` and `WindowHost` on registration, and wires draw, bounds, close, focus, popup and wheel callbacks. `WindowHost.Bounds` is applied to `BrowserUiState`/`VanillaBrowserPanel`; drag and bottom-right resize begin after Compendium-owned hit tests and advance through toolkit pointer operations. The existing `CoreResizeGripRenderer` supplies the optional standard `18 × 18` grip presentation. The root enables `Pinnable`; its localized header button uses `CorePinButtonRenderer` for presentation and `WindowHost.SetPinned()` for the action. WindowKit alone owns `IsPinned`, while Compendium owns button layout, hit testing and tooltip. Pin resets on close/reopen, prevents only Escape from closing that root, and does not prevent explicit close (`Alt+I` or the close button), options-menu close or world-unload close.
+
+The WindowKit `Closed` callback detaches the Vanilla state and releases Compendium-owned input resources. The host is disposed before the backend on teardown. The in-game options window and world-close conditions are handled by the toolkit instead of by a second Compendium root-close path. Closing for options does not discard navigation or filter state, and does not automatically reopen the browser when options close.
+
+For native updates, the adapter uses `WindowHost.TryUpdateContent()` with update-phase UI coordinates. With the WindowKit `v1.1.0` Core backend, input eligibility is checked while all Core panel bounds remain registered. An eligible synchronous `UserInterface.Update()` runs inside a toolkit-owned content-input scope that permits this window's native mouse input without unregistering panel bounds. The backend rechecks registration and higher-panel priority during the callback and restores the prior input policy on scope exit, while native game restrictions and unrelated patches remain effective. Compendium must not manipulate registrations owned by foreign Core panels. The adapter maintains the native coordinate context around update and bounds callbacks. The Compendium-owned `WheelAt` classifies points outside the root as `PassThrough`, section/Details content and open popup panels as `Deliver`, and the remaining root chrome or popup overlays as `CaptureOnly`. Delivery remains owned by Vanilla widgets even at scroll limits or with no overflow. The shared coordinator selects the eligible window; forwarding its chosen wheel delta and preserving game pass-through remain Compendium responsibilities.
+
+The coordinated Escape priority is `focused text input → open transient surface (Details before section) → unpinned root`. `HasTextFocus`/`ReleaseTextFocus` and `HasPopup`/`ClosePopup` report and clean up live Compendium-owned state; the production `CanReceiveKeyboard` and `WheelInputBlocked` overrides remain unset so the WindowKit backend applies its input-eligibility policy. A pinned root without its own focus or popup action passes Escape through to an eligible unpinned participating window, rather than globally blocking Escape. Compendium retains native search Enter/Escape behavior and its TerrariaModder Core text-input pairing: Core text input is enabled only while search writing is active and not blocked by a higher-priority panel, and released on focus loss, blocking or close. The consumer-owned physical-release tail is retained for native text-input key blocking; it is not a competing root-close path.
 
 `BrowserEmptyStatePresentation` chooses contextual/narrowed messages for Items, Recipes, Shimmer and Bestiary from existing domain-owned search, category, filter and Item-context state; it does not own or reset those states. Item/NPC grids share `EmptyStateTextLayout` with `SupplementalTooltip.WrapText` for readable multiline empty-state text. Recipe Details separately presents valid queries without producing recipes, queries with producing variants filtered to zero, and genuinely missing/unavailable identities. The active Recipes Favorites-only tooltip identifies disabling only that filter, without clearing other browsing criteria or saved favorites.
 
-The shared host boundary centralizes the cross-framework concerns required by the mod-owned Vanilla `UserInterface`, including:
-
-- Vanilla UI lifetime and coordinate-context transitions;
-- integration with TerrariaModder panel draw, bounds, and z-order ownership;
-- mouse and captured-wheel routing between Core and Vanilla UI;
-- keyboard/text-input ownership and cleanup;
-- framework deferred tooltip lifecycle plus the project-owned supplemental annotation lifecycle around Vanilla drawing.
-
-`SupplementalTooltip` is the shared project-owned layer for annotations that need to coexist with the framework Item tooltip. It participates in the same host-level deferred lifecycle, aggregates project-owned text annotations and compact visual rows into one secondary presentation, applies viewport-aware wrapping/layout, and complements rather than replaces `ItemTooltip` or TerrariaModder's ordinary tooltip services. Domain views register supplemental annotations without taking ownership of framework tooltip state.
-
-The browser input contract handles Escape through the same host/browser boundary with the precedence `focused text input → open transient surface → Compendium window`. Details-level transient surfaces, including the direct-crafting and merchant-stock-conditions popovers, participate in that same contract rather than defining a separate Escape path. The text-input path retains the existing release-tail blocking behavior until physical Escape release so the same key press is not re-observed as a second Terraria action. This policy does not introduce a parallel global input manager.
-
-For TerrariaModder Core 0.4.1, the host maintains framework text-input ownership only while Compendium text input is actually active and explicitly releases it through `UIRenderer.DisableTextInput()` when focus is lost, a higher-priority Core panel blocks Compendium input, or the browser closes. This framework text-input lifecycle is distinct from the project-owned Escape release-tail used by the browser key blocker.
-
-The browser lifecycle treats Terraria's in-game options window as a close condition distinct from the title/menu `gameMenu` state. While the in-game options window is active, the Compendium shell closes instead of updating; this normal close does not destroy the current browser session, navigation history, or filter composition. Closing Terraria's options does not automatically reopen Compendium, so reopening remains an explicit user action.
+`SupplementalTooltip` is the shared project-owned layer for annotations that need to coexist with the framework Item tooltip. It participates in the same host-level deferred lifecycle, aggregates project-owned text annotations and compact visual rows into one secondary presentation, applies viewport-aware wrapping/layout, and complements rather than replaces `ItemTooltip` or TerrariaModder's ordinary tooltip services. Domain views register supplemental annotations without taking ownership of framework tooltip state. Native `UserInterface.Draw()` still runs under blocked input, but deferred Compendium tooltips do not render over a higher-priority panel; requests are cleared after drawing and on detach. Height-constrained supplemental content shows only complete rows that fit rather than adding an independent scrolling mechanism.
 
 `VanillaPopover` is the shared production popover primitive. Popover content exposes natural-size measurement through the shared content contract; `VanillaPopover` adds shared chrome, constrains the resulting geometry to the available viewport, and preserves the existing anchoring and transient-surface lifecycle. Production callers should not reintroduce local fixed popover chrome or sizing when the shared measurement contract is sufficient.
 
@@ -535,9 +553,7 @@ Compact Item/NPC value presentation reuses shared retained-UI controls rather th
 
 Shared vanilla textures are requested through `DeferredTextureLoader`. UI requests preserve `NotLoaded` until a bounded queue performs `ImmediateLoad` on the game update thread: at most four loads per update, stopping before another load once four milliseconds have elapsed. One native load can exceed that time budget. `AsyncLoad` must not be used for these assets: Terraria 1.4.5.8's `Main.LoadItem` skips assets in `Loading`, while world-item drawing immediately dereferences their still-null texture values. The same policy covers Item, NPC, Buff, Tile, Extra, and shared UI textures. Pending requests are deduplicated, rechecked before loading, and cleared on world/mod unload without disposing Terraria-owned assets. Cached UI atlas references are re-enqueued when needed after a queue reset or asset invalidation. Queue scheduling is covered by automated tests; cold-cache joined-client rendering and first-view scrolling require in-game validation.
 
-For mouse input, the host continues to honor `UIRenderer.ShouldBlockForHigherPriorityPanel(...)`. When the Compendium panel is not blocked and its own bounds are registered, the host temporarily unregisters only the Compendium panel's own bounds around `UserInterface.Update()` and restores them afterward. It must not manipulate registrations owned by other Core panels.
-
-The accepted architecture does not introduce a parallel global z-order/input manager, manipulate foreign panel registrations, or duplicate TerrariaModder's global click-through system. A general project-owned UI framework is also not part of the architecture: Vanilla provides retained composition primitives, while TerrariaModder continues to provide shared mod/framework services.
+The accepted architecture does not introduce a second root-window manager, a project-owned global z-order/input coordinator, modifications to foreign panel registrations or a replacement for the native retained UI hierarchy. Domain catalogs, browser destinations, models and projections remain outside the hosting layer.
 
 Presentation changes may evolve control composition, spacing, icon framing, scrollbar visuals, and panel geometry, but they must preserve the existing domain/catalog/session/navigation ownership boundaries and reuse the current shared UI/host mechanisms where they satisfy the required behavior.
 

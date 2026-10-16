@@ -116,7 +116,7 @@ namespace TerrarianCompendium.UI.Vanilla
             AsyncItemIconRenderer.Draw(_itemId, x, y, width, height, IsMissing);
             DrawResearchMarker(x, y);
 
-            if (ShowTooltip && IsMouseHovering)
+            if (ShowTooltip && IsMouseHovering && !WidgetInput.BlockInput)
             {
                 CoreItemTooltip.Set(_itemId);
                 RegisterResearchSupplementalTooltip();

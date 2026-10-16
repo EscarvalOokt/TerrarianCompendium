@@ -62,7 +62,9 @@ namespace TerrarianCompendium.UI
                     DefaultPanelWidth,
                     DefaultPanelHeight,
                     MinimumPanelWidth,
-                    MinimumPanelHeight));
+                    MinimumPanelHeight),
+                MinimumPanelWidth,
+                MinimumPanelHeight);
         }
 
         public void Register()

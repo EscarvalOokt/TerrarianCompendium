@@ -71,11 +71,11 @@ namespace TerrarianCompendium.UI.Vanilla
             if (localization == null)
                 throw new ArgumentNullException(nameof(localization));
 
-            if (_entries.Count == 0)
-                return;
-
             try
             {
+                if (_entries.Count == 0)
+                    return;
+
                 int screenWidth = Math.Max(EdgePadding * 2 + 1, WidgetInput.ScreenWidth);
                 int screenHeight = Math.Max(EdgePadding * 2 + 1, WidgetInput.ScreenHeight);
                 int maxTooltipWidth = Math.Max(1, screenWidth - EdgePadding * 2);
@@ -183,8 +183,11 @@ namespace TerrarianCompendium.UI.Vanilla
 
                 int rowY = y + Padding;
                 int contentX = x + Padding;
+                int visibleRowCount = CountFittingRows(
+                    resolvedRows.ConvertAll(row => row.VisualLayout.Height),
+                    Math.Max(0, tooltipHeight - Padding * 2));
 
-                for (var index = 0; index < resolvedRows.Count; index++)
+                for (var index = 0; index < visibleRowCount; index++)
                 {
                     ResolvedRow row = resolvedRows[index];
 
@@ -214,9 +217,33 @@ namespace TerrarianCompendium.UI.Vanilla
             }
             finally
             {
-                _entries.Clear();
-                _primaryItemTooltipId = 0;
+                Clear();
             }
+        }
+
+        internal static int CountFittingRows(IReadOnlyList<int> rowHeights, int availableHeight)
+        {
+            if (rowHeights == null)
+                throw new ArgumentNullException(nameof(rowHeights));
+            if (availableHeight < 0)
+                throw new ArgumentOutOfRangeException(nameof(availableHeight));
+
+            var usedHeight = 0;
+
+            for (var index = 0; index < rowHeights.Count; index++)
+            {
+                int rowHeight = rowHeights[index];
+
+                if (rowHeight <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(rowHeights), "Row heights must be positive.");
+
+                if (rowHeight > availableHeight - usedHeight)
+                    return index;
+
+                usedHeight += rowHeight;
+            }
+
+            return rowHeights.Count;
         }
 
         private static SupplementalTooltipPosition ResolveWithoutPrimary(

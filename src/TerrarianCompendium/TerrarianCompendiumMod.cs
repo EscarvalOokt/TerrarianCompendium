@@ -28,7 +28,7 @@ namespace TerrarianCompendium
     {
         public const string ModId = "terrarian-compendium";
         public const string ModName = "Terrarian Compendium";
-        public const string ModVersion = "1.3.0";
+        public const string ModVersion = "1.4.0";
 
         private AnglerRewardCatalog _anglerRewardCatalog;
         private ArmorSetCatalog _armorSetCatalog;
@@ -646,7 +646,6 @@ namespace TerrarianCompendium
                 npcDetailsView,
                 navigationState,
                 _localization);
-            _browserShell.Register();
 
             try
             {
@@ -704,9 +703,7 @@ namespace TerrarianCompendium
                 EnsureItemTextIndexCurrent();
             }
 
-            if (Main.ingameOptionsWindow)
-                _browserShell?.Close();
-            else
+            if (!Main.ingameOptionsWindow)
                 _browserShell?.Update();
 
             SaveRecipeFavoritesIfNeeded();
@@ -724,6 +721,7 @@ namespace TerrarianCompendium
         {
             _browserShell?.Toggle();
         }
+
 
         private void EnsureRecipeFavoritesState()
         {
@@ -906,7 +904,6 @@ namespace TerrarianCompendium
             if (_browserShell == null)
                 return;
 
-            _browserShell.Close();
             _browserShell.Unregister();
             _browserShell = null;
         }

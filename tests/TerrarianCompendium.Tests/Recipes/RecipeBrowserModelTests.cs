@@ -1198,6 +1198,41 @@ namespace TerrarianCompendium.Tests.Recipes
         }
 
         [Test]
+        public void FavoritesOnly_DisablingPreservesOtherCriteriaAndFavoriteState()
+        {
+            ItemCatalog catalog = CreateItemCatalog(
+                new ItemCatalogEntry(1, "Matching Station"),
+                new ItemCatalogEntry(2, "Other Station"));
+            RecipeCatalog recipeCatalog = CreateRecipeCatalog(
+                CreateRecipeEntryWithRequirements(3, 1, CreateRequirements(requiredTileId: 10)),
+                CreateRecipeEntryWithRequirements(7, 1, CreateRequirements(requiredTileId: 20)),
+                CreateRecipeEntryWithRequirements(9, 2, CreateRequirements(requiredTileId: 20)));
+            RecipeFavoriteState favoriteState = CreateFavoriteState(recipeCatalog);
+            favoriteState.Toggle(7);
+            IReadOnlyList<RecipePersistentKey> favoriteKeys = favoriteState.CreatePersistentKeySnapshot();
+            long favoriteRevision = favoriteState.Revision;
+            var filterState = new RecipeFilterState { RequiredTileId = 10, FavoritesOnly = true };
+            RecipeBrowserModel model = CreateModel(catalog, recipeCatalog, filterState, favoriteState: favoriteState);
+
+            Assert.That(model.MatchingItems, Is.Empty);
+
+            filterState.FavoritesOnly = false;
+
+            Assert.That(model.SynchronizeFilters(), Is.True);
+            Assert.That(GetItemIds(model.MatchingItems), Is.EqualTo([1]));
+            Assert.That(filterState.RequiredTileId, Is.EqualTo(10));
+
+            filterState.FavoritesOnly = true;
+
+            Assert.That(model.SynchronizeFilters(), Is.True);
+            Assert.That(model.MatchingItems, Is.Empty);
+            Assert.That(filterState.RequiredTileId, Is.EqualTo(10));
+            Assert.That(favoriteState.IsFavorite(7), Is.True);
+            Assert.That(favoriteState.CreatePersistentKeySnapshot(), Is.EqualTo(favoriteKeys));
+            Assert.That(favoriteState.Revision, Is.EqualTo(favoriteRevision));
+        }
+
+        [Test]
         public void FavoriteRevision_InvalidatesCachedProjectionWhenFavoritesFilterIsActive()
         {
             ItemCatalog catalog = CreateItemCatalog(new ItemCatalogEntry(1, "Result"));

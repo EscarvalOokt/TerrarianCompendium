@@ -143,6 +143,8 @@ namespace TerrarianCompendium.UI
 
         public bool HasOpenTransientSurface => _craftButton.IsPopoverOpen;
 
+        public VanillaPopover OpenTransientPopover => _craftButton.OpenPopover;
+
         public void AttachPopoverHost(UIElement host)
         {
             _craftButton.AttachPopoverHost(host);

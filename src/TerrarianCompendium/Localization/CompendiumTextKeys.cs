@@ -53,6 +53,10 @@ namespace TerrarianCompendium.Localization
             public const string Back = "Common.Back";
             public const string Forward = "Common.Forward";
             public const string Close = "Common.Close";
+            public const string Pin = "Common.Pin";
+            public const string Unpin = "Common.Unpin";
+            public const string PinWindow = "Common.PinWindow";
+            public const string UnpinWindow = "Common.UnpinWindow";
             public const string Filters = "Common.Filters";
             public const string FiltersCount = "Common.FiltersCount";
             public const string EmptyReasonCategory = "Common.EmptyReason.Category";

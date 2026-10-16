@@ -8,7 +8,7 @@ namespace TerrarianCompendium.Tests.Project
     [TestFixture]
     public sealed class ReleaseMetadataTests
     {
-        private const string ExpectedReleaseVersion = "1.3.0";
+        private const string ExpectedReleaseVersion = "1.4.0";
 
         [Test]
         public void ManifestIdentity_MatchesRuntimeIdentity()

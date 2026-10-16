@@ -114,6 +114,37 @@ namespace TerrarianCompendium.Tests.UI
             Assert.That(rows[0].Width, Is.EqualTo(20));
         }
 
+        [TestCase(48, 3)]
+        [TestCase(32, 2)]
+        [TestCase(31, 1)]
+        [TestCase(15, 0)]
+        [TestCase(0, 0)]
+        public void CountFittingRows_FixedHeightRows_ReturnsFullyVisiblePrefix(int availableHeight, int expectedCount)
+        {
+            int count = SupplementalTooltip.CountFittingRows([16, 16, 16], availableHeight);
+
+            Assert.That(count, Is.EqualTo(expectedCount));
+        }
+
+        [Test]
+        public void CountFittingRows_DifferentHeights_UsesActualRowHeights()
+        {
+            IReadOnlyList<int> rowHeights = [10, 25, 5];
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SupplementalTooltip.CountFittingRows(rowHeights, 35), Is.EqualTo(2));
+                Assert.That(SupplementalTooltip.CountFittingRows(rowHeights, 39), Is.EqualTo(2));
+                Assert.That(SupplementalTooltip.CountFittingRows(rowHeights, 40), Is.EqualTo(3));
+            });
+        }
+
+        [Test]
+        public void CountFittingRows_FirstRowTooTall_DoesNotSkipToLaterRows()
+        {
+            Assert.That(SupplementalTooltip.CountFittingRows([30, 5], 10), Is.Zero);
+        }
+
         private static SupplementalTooltip.VisualToken CreateVisualToken(int width, int height)
         {
             return new SupplementalTooltip.VisualToken(width, height, (_, _, _, _) => { });

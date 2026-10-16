@@ -64,6 +64,8 @@ namespace TerrarianCompendium.UI
 
         public bool IsPopoverOpen => _popover?.IsOpen == true;
 
+        public VanillaPopover OpenPopover => IsPopoverOpen ? _popover : null;
+
         public void AttachPopoverHost(UIElement host)
         {
             if (host == null)

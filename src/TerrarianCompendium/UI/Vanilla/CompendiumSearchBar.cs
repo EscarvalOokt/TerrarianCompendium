@@ -81,6 +81,12 @@ namespace TerrarianCompendium.UI.Vanilla
             _searchBar.ToggleTakingText();
         }
 
+        public void ReleaseTextFocus()
+        {
+            if (IsWritingText)
+                _searchBar.ToggleTakingText();
+        }
+
         public override void RecalculateChildren()
         {
             CalculatedStyle dimensions = GetInnerDimensions();
@@ -116,7 +122,7 @@ namespace TerrarianCompendium.UI.Vanilla
             base.Update(gameTime);
 
             if (IsWritingText && (Main.mouseLeft || Main.mouseRight) && !IsMouseHovering)
-                ToggleTakingText();
+                ReleaseTextFocus();
         }
 
         protected override void DrawSelf(SpriteBatch spriteBatch)
@@ -217,9 +223,7 @@ namespace TerrarianCompendium.UI.Vanilla
 
         private void GoBackFromVirtualKeyboard()
         {
-            if (_searchBar.IsWritingText)
-                _searchBar.ToggleTakingText();
-
+            ReleaseTextFocus();
             _goBackFromVirtualKeyboard();
         }
     }

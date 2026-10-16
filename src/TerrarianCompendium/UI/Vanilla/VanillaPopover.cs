@@ -30,6 +30,11 @@ namespace TerrarianCompendium.UI.Vanilla
 
         public bool IsOpen => Parent == _host;
 
+        public BrowserWheelPopupGeometry? OpenWheelGeometry =>
+            IsOpen
+                ? new BrowserWheelPopupGeometry(BrowserWheelBounds.From(this), BrowserWheelBounds.From(_panel))
+                : null;
+
         public void SetAnchor(UIElement anchor)
         {
             if (anchor == null)

@@ -96,6 +96,8 @@ namespace TerrarianCompendium.UI
 
         public bool HasOpenTransientSurface => _rewardInfoPopover.IsOpen;
 
+        public VanillaPopover OpenTransientPopover => _rewardInfoPopover.IsOpen ? _rewardInfoPopover : null;
+
         public bool TryCloseTransientSurface()
         {
             if (!_rewardInfoPopover.IsOpen)

@@ -1,31 +1,26 @@
 using System;
+using Escarval.TerrariaWindowKit;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Terraria;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
+using TerrariaModder.Core.UI.Widgets;
 
 namespace TerrarianCompendium.UI.Vanilla
 {
     internal sealed class VanillaBrowserPanel : UIElement
     {
         private const int HeaderHeight = 32;
-        private const int ResizeHandleHitSize = 18;
-        private const int ResizeHandleVisualSize = 8;
-        private const int ResizeHandleInset = 3;
+        private const int ResizeHandleHitSize = CoreResizeGripRenderer.DefaultGripSize;
         private const int CloseButtonSize = 24;
         private const int CloseButtonInset = 6;
-        private readonly int _minimumHeight;
-        private readonly int _minimumWidth;
-        private readonly DraggablePanelResizeBehavior _resizeBehavior;
-
+        private const int HeaderButtonGap = 4;
+        private const int HeaderTitleInset = 10;
+        private readonly PinButtonElement _pinButton;
         private readonly ResizeHandleElement _resizeHandle;
         private readonly string _title;
-        private Vector2 _dragPointerStart;
-        private float _dragPositionStartX;
-        private float _dragPositionStartY;
         private bool _externalInputBlocked;
-        private bool _isDragging;
+        private int _pinButtonWidth;
 
         public VanillaBrowserPanel(
             string title,
@@ -50,18 +45,23 @@ namespace TerrarianCompendium.UI.Vanilla
                 throw new ArgumentOutOfRangeException(nameof(minimumHeight));
 
             _title = title;
-            _minimumWidth = minimumWidth;
-            _minimumHeight = minimumHeight;
-            _resizeBehavior = new DraggablePanelResizeBehavior(minimumWidth, minimumHeight);
 
             CalculatedStyle viewport = UserInterface.ActiveInstance.GetDimensions();
             int viewportWidth = Math.Max(1, (int)viewport.Width);
             int viewportHeight = Math.Max(1, (int)viewport.Height);
-            int width = DraggablePanelResizeBehavior.ClampDimension(defaultWidth, minimumWidth, viewportWidth);
-            int height = DraggablePanelResizeBehavior.ClampDimension(defaultHeight, minimumHeight, viewportHeight);
+            WindowBounds fittedSize = new WindowBounds(0, 0, defaultWidth, defaultHeight).Fit(
+                viewportWidth,
+                viewportHeight,
+                minimumWidth,
+                minimumHeight);
+            int width = fittedSize.Width;
+            int height = fittedSize.Height;
 
-            Left.Set(Math.Max(0, (viewportWidth - width) / 2), 0f);
-            Top.Set(Math.Max(0, (viewportHeight - height) / 2), 0f);
+            int x = Math.Max(0, (viewportWidth - width) / 2);
+            int y = Math.Max(0, (viewportHeight - height) / 2);
+            InitialBounds = new Rectangle(x, y, width, height);
+            Left.Set(x, 0f);
+            Top.Set(y, 0f);
             Width.Set(width, 0f);
             Height.Set(height, 0f);
             OverflowHidden = true;
@@ -85,6 +85,15 @@ namespace TerrarianCompendium.UI.Vanilla
             };
             HeaderRoot.Append(CloseButton);
 
+            _pinButton = new PinButtonElement(() => IsPinned?.Invoke() == true, () => _externalInputBlocked)
+            {
+                Top = new StyleDimension((HeaderHeight - CloseButtonSize) / 2f, 0f),
+                Width = new StyleDimension(0f, 0f),
+                Height = new StyleDimension(CloseButtonSize, 0f)
+            };
+            _pinButton.OnLeftClick += OnPinButtonLeftClick;
+            HeaderRoot.Append(_pinButton);
+
             ContentRoot = new UIElement
             {
                 Top = new StyleDimension(HeaderHeight, 0f),
@@ -95,7 +104,7 @@ namespace TerrarianCompendium.UI.Vanilla
             ContentRoot.SetPadding(0f);
             Append(ContentRoot);
 
-            _resizeHandle = new ResizeHandleElement(() => _resizeBehavior.IsResizing)
+            _resizeHandle = new ResizeHandleElement(() => IsResizing?.Invoke() == true, () => _externalInputBlocked)
             {
                 Left = new StyleDimension(-ResizeHandleHitSize, 1f),
                 Top = new StyleDimension(-ResizeHandleHitSize, 1f),
@@ -114,41 +123,37 @@ namespace TerrarianCompendium.UI.Vanilla
 
         public Rectangle Bounds => GetDimensions().ToRectangle();
 
+        public Rectangle InitialBounds { get; }
+
+        public Func<bool> IsResizing { get; set; }
+
+        public Func<bool> IsPinned { get; set; }
+
         public event Action CloseRequested;
 
+        public event Action PinToggleRequested;
+
         public event Action InteractionStarted;
+
+        public event Action<int, int> DragRequested;
+
+        public event Action<int, int> ResizeRequested;
 
         public void SetExternalInputBlocked(bool blocked)
         {
             _externalInputBlocked = blocked;
-
-            if (blocked)
-                CancelPointerOperation();
         }
 
-        public override void Update(GameTime gameTime)
+        public void SetPinButtonLocalization(string pinText, string unpinText, string pinTooltip, string unpinTooltip)
         {
-            EnsureWithinViewport();
+            _pinButton.PinText = pinText ?? string.Empty;
+            _pinButton.UnpinText = unpinText ?? string.Empty;
+            _pinButton.PinTooltip = pinTooltip;
+            _pinButton.UnpinTooltip = unpinTooltip;
 
-            if (_externalInputBlocked)
-            {
-                CancelPointerOperation();
-                base.Update(gameTime);
-                return;
-            }
-
-            if (_isDragging && !Main.mouseLeft)
-                _isDragging = false;
-
-            if (_resizeBehavior.IsResizing && !Main.mouseLeft)
-                _resizeBehavior.Cancel();
-
-            if (_isDragging)
-                UpdateDragging();
-            else if (_resizeBehavior.IsResizing)
-                UpdateResizing();
-
-            base.Update(gameTime);
+            var panelWidth = (int)GetDimensions().Width;
+            UpdatePinButtonLayout(panelWidth > 0 ? panelWidth : InitialBounds.Width);
+            Recalculate();
         }
 
         public override void LeftMouseDown(UIMouseEvent evt)
@@ -161,12 +166,6 @@ namespace TerrarianCompendium.UI.Vanilla
         {
             InteractionStarted?.Invoke();
             base.RightMouseDown(evt);
-        }
-
-        public override void LeftMouseUp(UIMouseEvent evt)
-        {
-            base.LeftMouseUp(evt);
-            CancelPointerOperation();
         }
 
         protected override void DrawSelf(SpriteBatch spriteBatch)
@@ -182,38 +181,29 @@ namespace TerrarianCompendium.UI.Vanilla
 
             UIRenderer.DrawPanel(x, y, width, height, UIColors.PanelBg);
             UIRenderer.DrawRect(x, y, width, HeaderHeight, UIColors.HeaderBg);
-            UIRenderer.DrawTextShadow(_title, x + 10, y + 8, UIColors.TextTitle);
+            int titleWidth = Math.Max(
+                0,
+                width -
+                HeaderTitleInset -
+                CloseButtonInset -
+                CloseButtonSize -
+                HeaderButtonGap -
+                _pinButtonWidth -
+                HeaderButtonGap);
+            if (titleWidth > 0)
+            {
+                string title = TextUtil.Truncate(_title, titleWidth);
+                if (title.Length > 0)
+                    UIRenderer.DrawTextShadow(title, x + HeaderTitleInset, y + 8, UIColors.TextTitle);
+            }
         }
 
-        private void EnsureWithinViewport()
+        private void OnPinButtonLeftClick(UIMouseEvent evt, UIElement listeningElement)
         {
-            CalculatedStyle viewport = UserInterface.ActiveInstance.GetDimensions();
-            int viewportWidth = Math.Max(1, (int)viewport.Width);
-            int viewportHeight = Math.Max(1, (int)viewport.Height);
-            CalculatedStyle dimensions = GetDimensions();
-            int currentWidth = Math.Max(1, (int)Math.Round(dimensions.Width));
-            int currentHeight = Math.Max(1, (int)Math.Round(dimensions.Height));
-            int width = DraggablePanelResizeBehavior.ClampDimension(currentWidth, _minimumWidth, viewportWidth);
-            int height = DraggablePanelResizeBehavior.ClampDimension(currentHeight, _minimumHeight, viewportHeight);
-
-            float maxX = Math.Max(0, viewportWidth - width);
-            float maxY = Math.Max(0, viewportHeight - height);
-            float left = Math.Max(0f, Math.Min(dimensions.X, maxX));
-            float top = Math.Max(0f, Math.Min(dimensions.Y, maxY));
-
-            if (width == currentWidth &&
-                height == currentHeight &&
-                Math.Abs(left - dimensions.X) < 0.01f &&
-                Math.Abs(top - dimensions.Y) < 0.01f)
-            {
+            if (_externalInputBlocked || WidgetInput.BlockInput || evt.Target != _pinButton)
                 return;
-            }
 
-            Width.Set(width, 0f);
-            Height.Set(height, 0f);
-            Left.Set(left, 0f);
-            Top.Set(top, 0f);
-            Recalculate();
+            PinToggleRequested?.Invoke();
         }
 
         private void OnHeaderLeftMouseDown(UIMouseEvent evt, UIElement listeningElement)
@@ -221,12 +211,7 @@ namespace TerrarianCompendium.UI.Vanilla
             if (_externalInputBlocked || evt.Target != HeaderRoot)
                 return;
 
-            CalculatedStyle dimensions = GetDimensions();
-            _resizeBehavior.Cancel();
-            _isDragging = true;
-            _dragPointerStart = evt.MousePosition;
-            _dragPositionStartX = dimensions.X;
-            _dragPositionStartY = dimensions.Y;
+            DragRequested?.Invoke((int)Math.Round(evt.MousePosition.X), (int)Math.Round(evt.MousePosition.Y));
         }
 
         private void OnResizeHandleLeftMouseDown(UIMouseEvent evt, UIElement listeningElement)
@@ -234,86 +219,93 @@ namespace TerrarianCompendium.UI.Vanilla
             if (_externalInputBlocked || evt.Target != _resizeHandle)
                 return;
 
-            CalculatedStyle dimensions = GetDimensions();
-            _isDragging = false;
-            _resizeBehavior.Begin(
-                (int)Math.Round(evt.MousePosition.X),
-                (int)Math.Round(evt.MousePosition.Y),
-                Math.Max(1, (int)Math.Round(dimensions.Width)),
-                Math.Max(1, (int)Math.Round(dimensions.Height)));
+            ResizeRequested?.Invoke((int)Math.Round(evt.MousePosition.X), (int)Math.Round(evt.MousePosition.Y));
         }
 
-        private void UpdateDragging()
+        public void ApplyBounds(Rectangle bounds)
         {
-            Vector2 pointer = UserInterface.ActiveInstance.MousePosition;
-            CalculatedStyle viewport = UserInterface.ActiveInstance.GetDimensions();
-            CalculatedStyle dimensions = GetDimensions();
-            float x = _dragPositionStartX + pointer.X - _dragPointerStart.X;
-            float y = _dragPositionStartY + pointer.Y - _dragPointerStart.Y;
-            float maxX = Math.Max(0f, viewport.Width - dimensions.Width);
-            float maxY = Math.Max(0f, viewport.Height - dimensions.Height);
-
-            Left.Set(Math.Max(0f, Math.Min(x, maxX)), 0f);
-            Top.Set(Math.Max(0f, Math.Min(y, maxY)), 0f);
+            Left.Set(bounds.X, 0f);
+            Top.Set(bounds.Y, 0f);
+            Width.Set(bounds.Width, 0f);
+            Height.Set(bounds.Height, 0f);
+            UpdatePinButtonLayout(bounds.Width);
             Recalculate();
         }
 
-        private void UpdateResizing()
+        private void UpdatePinButtonLayout(int panelWidth)
         {
-            Vector2 pointer = UserInterface.ActiveInstance.MousePosition;
-            CalculatedStyle viewport = UserInterface.ActiveInstance.GetDimensions();
+            int availableWidth = Math.Max(
+                0,
+                panelWidth - HeaderTitleInset - CloseButtonInset - CloseButtonSize - HeaderButtonGap);
+            _pinButtonWidth = Math.Min(
+                CorePinButtonRenderer.MeasureWidth(_pinButton.PinText, _pinButton.UnpinText),
+                availableWidth);
+            _pinButton.Left.Set(-(CloseButtonInset + CloseButtonSize + HeaderButtonGap + _pinButtonWidth), 1f);
+            _pinButton.Width.Set(_pinButtonWidth, 0f);
+        }
 
-            if (!_resizeBehavior.TryUpdate(
-                    (int)Math.Round(pointer.X),
-                    (int)Math.Round(pointer.Y),
-                    Main.mouseLeft,
-                    _externalInputBlocked,
-                    Math.Max(1, (int)viewport.Width),
-                    Math.Max(1, (int)viewport.Height),
-                    out int width,
-                    out int height))
+        private sealed class PinButtonElement(Func<bool> isPinned, Func<bool> isInputBlocked) : UIElement
+        {
+            private readonly Func<bool> _isInputBlocked =
+                isInputBlocked ?? throw new ArgumentNullException(nameof(isInputBlocked));
+
+            private readonly Func<bool> _isPinned = isPinned ?? throw new ArgumentNullException(nameof(isPinned));
+
+            public string PinText { get; set; } = string.Empty;
+
+            public string UnpinText { get; set; } = string.Empty;
+
+            public string PinTooltip { get; set; }
+
+            public string UnpinTooltip { get; set; }
+
+            protected override void DrawSelf(SpriteBatch spriteBatch)
             {
-                return;
+                CalculatedStyle dimensions = GetDimensions();
+                int width = Math.Max(0, (int)dimensions.Width);
+                int height = Math.Max(0, (int)dimensions.Height);
+                if (width <= 0 || height <= 0)
+                    return;
+
+                bool isPinned = _isPinned();
+                bool hovered = IsMouseHovering && !_isInputBlocked() && !WidgetInput.BlockInput;
+                CorePinButtonRenderer.Draw(
+                    (int)dimensions.X,
+                    (int)dimensions.Y,
+                    width,
+                    height,
+                    isPinned,
+                    hovered,
+                    PinText,
+                    UnpinText);
+
+                if (hovered)
+                {
+                    string tooltip = isPinned ? UnpinTooltip : PinTooltip;
+                    if (!string.IsNullOrEmpty(tooltip))
+                        Tooltip.Set(tooltip);
+                }
             }
-
-            Width.Set(width, 0f);
-            Height.Set(height, 0f);
-            ClampPositionToViewport((int)viewport.Width, (int)viewport.Height, width, height);
-            Recalculate();
         }
 
-        private void ClampPositionToViewport(int viewportWidth, int viewportHeight, int width, int height)
+        private sealed class ResizeHandleElement(Func<bool> isResizing, Func<bool> isInputBlocked) : UIElement
         {
-            CalculatedStyle dimensions = GetDimensions();
-            float maxX = Math.Max(0, viewportWidth - width);
-            float maxY = Math.Max(0, viewportHeight - height);
+            private readonly Func<bool> _isInputBlocked =
+                isInputBlocked ?? throw new ArgumentNullException(nameof(isInputBlocked));
 
-            Left.Set(Math.Max(0f, Math.Min(dimensions.X, maxX)), 0f);
-            Top.Set(Math.Max(0f, Math.Min(dimensions.Y, maxY)), 0f);
-        }
-
-        private void CancelPointerOperation()
-        {
-            _isDragging = false;
-            _resizeBehavior.Cancel();
-        }
-
-        private sealed class ResizeHandleElement(Func<bool> isResizing) : UIElement
-        {
             private readonly Func<bool> _isResizing = isResizing ?? throw new ArgumentNullException(nameof(isResizing));
 
             protected override void DrawSelf(SpriteBatch spriteBatch)
             {
                 CalculatedStyle dimensions = GetDimensions();
-                int visualX = (int)(dimensions.X + dimensions.Width) - ResizeHandleVisualSize - ResizeHandleInset;
-                int visualY = (int)(dimensions.Y + dimensions.Height) - ResizeHandleVisualSize - ResizeHandleInset;
-
-                UIRenderer.DrawRect(
-                    visualX,
-                    visualY,
-                    ResizeHandleVisualSize,
-                    ResizeHandleVisualSize,
-                    _isResizing() || IsMouseHovering ? UIColors.Accent : UIColors.Border);
+                bool hovered = IsMouseHovering && !_isInputBlocked() && !WidgetInput.BlockInput;
+                CoreResizeGripRenderer.Draw(
+                    (int)dimensions.X,
+                    (int)dimensions.Y,
+                    (int)dimensions.Width,
+                    (int)dimensions.Height,
+                    hovered,
+                    _isResizing());
             }
         }
     }

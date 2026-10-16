@@ -5,11 +5,12 @@
         <AssemblyName>TerrarianCompendium</AssemblyName>
         <OutputType>Library</OutputType>
         <LangVersion>latest</LangVersion>
+        <TerrariaWindowKitIncludeCore>true</TerrariaWindowKitIncludeCore>
         <Nullable>disable</Nullable>
         <ImplicitUsings>disable</ImplicitUsings>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-        <Version>1.3.0</Version>
+        <Version>1.4.0</Version>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,6 +24,7 @@
 
     <Import Project="..\TerrarianCompendium.Local.props"
             Condition="Exists('..\TerrarianCompendium.Local.props')"/>
+    <Import Project="..\..\..\TerrariaWindowKit\src\TerrariaWindowKit.Source.projitems" Label="Shared"/>
 
     <PropertyGroup>
         <TerrariaExe Condition="'$(TerrariaDirectory)' != ''">$(TerrariaDirectory)\Terraria.exe</TerrariaExe>

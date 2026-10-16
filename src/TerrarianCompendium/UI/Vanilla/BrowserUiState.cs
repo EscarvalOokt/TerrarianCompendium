@@ -9,7 +9,32 @@ using TerrarianCompendium.Navigation;
 
 namespace TerrarianCompendium.UI.Vanilla
 {
-    internal sealed class BrowserUiState : UIState
+    internal interface IBrowserHostInputState
+    {
+        bool IsWritingText { get; }
+
+        bool HasOpenTransientSurface { get; }
+
+        BrowserWheelRegion GetWheelRegion(int x, int y);
+
+        bool TryCloseTransientSurface();
+    }
+
+    // Project-owned transient priority is independent from the native Terraria UIState.
+    internal static class BrowserTransientClosing
+    {
+        internal static bool CloseFirstAvailableTransientSurface(Func<bool> closeDetails, Func<bool> closeSection)
+        {
+            if (closeDetails == null)
+                throw new ArgumentNullException(nameof(closeDetails));
+            if (closeSection == null)
+                throw new ArgumentNullException(nameof(closeSection));
+
+            return closeDetails() || closeSection();
+        }
+    }
+
+    internal sealed class BrowserUiState : UIState, IBrowserHostInputState
     {
         private const int SectionTabsHeight = 24;
         private const int HistoryButtonSize = 24;
@@ -93,6 +118,9 @@ namespace TerrarianCompendium.UI.Vanilla
             _panel = new VanillaBrowserPanel(title, defaultWidth, defaultHeight, minimumWidth, minimumHeight);
             _panel.CloseRequested += () => CloseRequested?.Invoke();
             _panel.InteractionStarted += () => InteractionStarted?.Invoke();
+            _panel.DragRequested += (x, y) => DragRequested?.Invoke(x, y);
+            _panel.ResizeRequested += (x, y) => ResizeRequested?.Invoke(x, y);
+            _panel.PinToggleRequested += () => PinToggleRequested?.Invoke();
             Append(_panel);
 
             _backButton = new VanillaTextButton("←", NavigateBack);
@@ -141,6 +169,8 @@ namespace TerrarianCompendium.UI.Vanilla
 
         public Rectangle Bounds => _panel.Bounds;
 
+        public Rectangle InitialBounds => _panel.InitialBounds;
+
         public bool IsWritingText =>
             _itemBrowserView.IsWritingText ||
             _armorSetBrowserView?.IsWritingText == true ||
@@ -185,11 +215,71 @@ namespace TerrarianCompendium.UI.Vanilla
             }
         }
 
+        public BrowserWheelRegion GetWheelRegion(int x, int y)
+        {
+            BrowserWheelPopupGeometry? sectionPopup = GetActiveSectionPopover()?.OpenWheelGeometry;
+            BrowserWheelPopupGeometry? detailsPopup = _contentLayout.DetailsVisible
+                ? _detailsSurface.OpenTransientPopover?.OpenWheelGeometry
+                : null;
+
+            return BrowserWheelRouting.Classify(
+                x,
+                y,
+                BrowserWheelBounds.From(_panel),
+                BrowserWheelBounds.From(_sectionHost),
+                _contentLayout.DetailsVisible ? BrowserWheelBounds.From(_detailsSurface) : null,
+                sectionPopup,
+                detailsPopup);
+        }
+
         public bool TryCloseTransientSurface()
         {
-            if (_detailsSurface.TryCloseTransientSurface())
-                return true;
+            return BrowserTransientClosing.CloseFirstAvailableTransientSurface(
+                _detailsSurface.TryCloseTransientSurface,
+                TryCloseActiveSectionTransientSurface);
+        }
 
+        private VanillaPopover GetActiveSectionPopover()
+        {
+            if (!_hasActiveSection)
+                return null;
+
+            return _activeSection switch
+            {
+                BrowserSection.Items => _itemBrowserView.OpenTransientPopover,
+                BrowserSection.Recipes => _recipeBrowserView?.OpenTransientPopover,
+                BrowserSection.Shimmer => _shimmerBrowserView?.OpenTransientPopover,
+                BrowserSection.Bestiary => _bestiaryBrowserView?.OpenTransientPopover,
+                BrowserSection.Angler => _anglerBrowserView?.OpenTransientPopover,
+                _ => null
+            };
+        }
+
+        public void ReleaseTextFocus()
+        {
+            _itemBrowserView.ReleaseTextFocus();
+            _recipeBrowserView?.ReleaseTextFocus();
+            _shimmerBrowserView?.ReleaseTextFocus();
+            _bestiaryBrowserView?.ReleaseTextFocus();
+        }
+
+        public void ApplyBounds(Rectangle bounds)
+        {
+            _panel.ApplyBounds(bounds);
+        }
+
+        public void SetIsResizingProvider(Func<bool> isResizing)
+        {
+            _panel.IsResizing = isResizing;
+        }
+
+        public void SetIsPinnedProvider(Func<bool> isPinned)
+        {
+            _panel.IsPinned = isPinned;
+        }
+
+        private bool TryCloseActiveSectionTransientSurface()
+        {
             if (!_hasActiveSection)
                 return false;
 
@@ -220,7 +310,13 @@ namespace TerrarianCompendium.UI.Vanilla
 
         public event Action CloseRequested;
 
+        public event Action PinToggleRequested;
+
         public event Action InteractionStarted;
+
+        public event Action<int, int> DragRequested;
+
+        public event Action<int, int> ResizeRequested;
 
         public void SetExternalInputBlocked(bool blocked)
         {
@@ -264,6 +360,11 @@ namespace TerrarianCompendium.UI.Vanilla
             _bestiaryTab.Text = _localization.Get(CompendiumTextKeys.Browser.BestiarySection);
             _anglerTab.Text = _localization.Get(CompendiumTextKeys.Browser.AnglerSection);
             _panel.CloseButton.TooltipText = _localization.Get(CompendiumTextKeys.Common.Close);
+            _panel.SetPinButtonLocalization(
+                _localization.Get(CompendiumTextKeys.Common.Pin),
+                _localization.Get(CompendiumTextKeys.Common.Unpin),
+                _localization.Get(CompendiumTextKeys.Common.PinWindow),
+                _localization.Get(CompendiumTextKeys.Common.UnpinWindow));
             _armorSetsUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.ArmorSetsUnavailable));
             _recipesUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.RecipesUnavailable));
             _shimmerUnavailableState.SetText(_localization.Get(CompendiumTextKeys.Browser.ShimmerUnavailable));
@@ -569,6 +670,75 @@ namespace TerrarianCompendium.UI.Vanilla
                 int y = (int)dimensions.Y + Math.Max(0, (height - TextHeight) / 2);
                 UIRenderer.DrawText(display, x, y, UIColors.TextDim);
             }
+        }
+    }
+
+    internal enum BrowserWheelRegion
+    {
+        PassThrough,
+        Deliver,
+        CaptureOnly
+    }
+
+    internal readonly struct BrowserWheelBounds(int x, int y, int width, int height)
+    {
+        public int X { get; } = x;
+
+        public int Y { get; } = y;
+
+        public int Width { get; } = width;
+
+        public int Height { get; } = height;
+
+        public bool Contains(int x, int y)
+        {
+            return Width > 0 && Height > 0 && x >= X && y >= Y && x < (long)X + Width && y < (long)Y + Height;
+        }
+
+        public static BrowserWheelBounds From(UIElement element)
+        {
+            var bounds = element.GetDimensions().ToRectangle();
+            return new BrowserWheelBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        }
+    }
+
+    internal readonly struct BrowserWheelPopupGeometry(BrowserWheelBounds overlay, BrowserWheelBounds panel)
+    {
+        public BrowserWheelBounds Overlay { get; } = overlay;
+
+        public BrowserWheelBounds Panel { get; } = panel;
+    }
+
+    internal static class BrowserWheelRouting
+    {
+        public static BrowserWheelRegion Classify(
+            int x,
+            int y,
+            BrowserWheelBounds root,
+            BrowserWheelBounds section,
+            BrowserWheelBounds? details,
+            BrowserWheelPopupGeometry? sectionPopup,
+            BrowserWheelPopupGeometry? detailsPopup)
+        {
+            if (!root.Contains(x, y))
+                return BrowserWheelRegion.PassThrough;
+
+            // Popovers own their overlay, but never block the other, non-overlapping content region.
+            if (detailsPopup.HasValue && detailsPopup.Value.Overlay.Contains(x, y))
+                return detailsPopup.Value.Panel.Contains(x, y)
+                    ? BrowserWheelRegion.Deliver
+                    : BrowserWheelRegion.CaptureOnly;
+
+            if (sectionPopup.HasValue && sectionPopup.Value.Overlay.Contains(x, y))
+                return sectionPopup.Value.Panel.Contains(x, y)
+                    ? BrowserWheelRegion.Deliver
+                    : BrowserWheelRegion.CaptureOnly;
+
+            // Do not pass through at scroll limits or when a content list does not overflow.
+            if (section.Contains(x, y) || (details.HasValue && details.Value.Contains(x, y)))
+                return BrowserWheelRegion.Deliver;
+
+            return BrowserWheelRegion.CaptureOnly;
         }
     }
 }

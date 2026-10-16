@@ -144,6 +144,68 @@ namespace TerrarianCompendium.Tests.Shimmer
         }
 
         [Test]
+        public void ContextualFiltering_UsesSelectedInputAndPreservesBrowserCriteria()
+        {
+            var catalog = ItemCatalog.Create(
+            [
+                new ItemCatalogEntry(1, "Magic Result", ItemCategoryMembership.Weapons),
+                new ItemCatalogEntry(2, "Other Result", ItemCategoryMembership.Weapons),
+                new ItemCatalogEntry(3, "Magic Furniture", ItemCategoryMembership.Furniture),
+                new ItemCatalogEntry(10, "First Input"),
+                new ItemCatalogEntry(20, "Second Input")
+            ]);
+            var filters = new ShimmerFilterState
+            {
+                Kind = ShimmerTransformationKind.Direct,
+                Progression = ShimmerProgressionFilter.Unlocked
+            };
+            ShimmerBrowserModel model = CreateModel(
+                catalog,
+                filters,
+                isLocked: variant => variant.ProgressionRequirement == ShimmerProgressionRequirement.PostMoonLord,
+                variants:
+                [
+                    Direct(10, 1),
+                    Direct(10, 2),
+                    Direct(10, 3),
+                    new ShimmerTransformationVariant(
+                        20,
+                        ShimmerTransformationKind.Decraft,
+                        1,
+                        [
+                            new ShimmerTransformationOutput(1, 1),
+                            new ShimmerTransformationOutput(2, 1),
+                            new ShimmerTransformationOutput(3, 1)
+                        ],
+                        ShimmerProgressionRequirement.PostMoonLord,
+                        decraftingRecipeRuntimeIndex: 7)
+                ]);
+            model.ContextItemId = 10;
+            model.SearchQuery = "magic";
+            model.NavigationFilter = ChecklistNavigationFilter.ForNode(ItemNavigationNodeId.Weapons);
+
+            Assert.That(GetIds(model), Is.EqualTo([1]));
+
+            filters.Kind = ShimmerTransformationKind.Decraft;
+            filters.Progression = ShimmerProgressionFilter.Locked;
+
+            Assert.That(model.Synchronize(), Is.True);
+            Assert.That(model.MatchingItems, Is.Empty);
+            Assert.That(model.IsContextItemAvailable(10), Is.True);
+            Assert.That(model.ContextItemId, Is.EqualTo(10));
+
+            model.ContextItemId = 20;
+
+            Assert.That(GetIds(model), Is.EqualTo([1]));
+            Assert.That(model.SearchQuery, Is.EqualTo("magic"));
+            Assert.That(
+                model.NavigationFilter,
+                Is.EqualTo(ChecklistNavigationFilter.ForNode(ItemNavigationNodeId.Weapons)));
+            Assert.That(filters.Kind, Is.EqualTo(ShimmerTransformationKind.Decraft));
+            Assert.That(filters.Progression, Is.EqualTo(ShimmerProgressionFilter.Locked));
+        }
+
+        [Test]
         public void RuntimeContextWithoutProgressionFilter_DoesNotInvalidateProjection()
         {
             ItemCatalog catalog = CreateCatalog(1, 10);

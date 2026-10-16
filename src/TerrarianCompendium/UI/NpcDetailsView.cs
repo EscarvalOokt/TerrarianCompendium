@@ -118,6 +118,8 @@ namespace TerrarianCompendium.UI
 
         public bool HasOpenTransientSurface => _stockConditionsPopover?.IsOpen == true;
 
+        public VanillaPopover OpenTransientPopover => HasOpenTransientSurface ? _stockConditionsPopover : null;
+
         public void AttachPopoverHost(UIElement host)
         {
             if (host == null)

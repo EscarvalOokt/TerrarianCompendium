@@ -74,6 +74,23 @@ namespace TerrarianCompendium.UI
             SynchronizeNavigation();
         }
 
+        public VanillaPopover OpenTransientPopover
+        {
+            get
+            {
+                if (ReferenceEquals(_activeContent, _itemDetailsView))
+                    return _itemDetailsView.OpenTransientPopover;
+
+                if (ReferenceEquals(_activeContent, _recipeDetailsView))
+                    return _recipeDetailsView?.OpenTransientPopover;
+
+                if (ReferenceEquals(_activeContent, _npcDetailsView))
+                    return _npcDetailsView?.OpenTransientPopover;
+
+                return null;
+            }
+        }
+
         public bool HasOpenTransientSurface
         {
             get

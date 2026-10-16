@@ -2,6 +2,7 @@ using System;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
+using TerrariaModder.Core.UI.Widgets;
 using TerrarianCompendium.Journey;
 using ItemTooltip = TerrariaModder.Core.UI.Widgets.ItemTooltip;
 
@@ -86,7 +87,7 @@ namespace TerrarianCompendium.UI.Vanilla
             UIRenderer.DrawRect(x, y, width, height, IsMouseHovering ? UIColors.ButtonHover : UIColors.ItemBg);
             UIRenderer.DrawRectOutline(x, y, width, height, UIColors.Border);
 
-            if (IsMouseHovering)
+            if (IsMouseHovering && !WidgetInput.BlockInput)
             {
                 ItemTooltip.Set(_itemId);
                 _icon.RegisterResearchSupplementalTooltip();

@@ -120,6 +120,13 @@ namespace TerrarianCompendium.UI
 
         public bool HasOpenTransientSurface => _filterPopover.IsOpen;
 
+        public VanillaPopover OpenTransientPopover => _filterPopover.IsOpen ? _filterPopover : null;
+
+        public void ReleaseTextFocus()
+        {
+            _searchInput.ReleaseTextFocus();
+        }
+
         public bool TryCloseTransientSurface()
         {
             if (!_filterPopover.IsOpen)
@@ -134,8 +141,7 @@ namespace TerrarianCompendium.UI
         {
             _filterPopover.Close();
 
-            if (_searchInput.IsWritingText)
-                _searchInput.ToggleTakingText();
+            ReleaseTextFocus();
 
             UpdateFilterControlsPresentation();
             base.OnDeactivate();
