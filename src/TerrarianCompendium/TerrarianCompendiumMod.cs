@@ -28,7 +28,7 @@ namespace TerrarianCompendium
     {
         public const string ModId = "terrarian-compendium";
         public const string ModName = "Terrarian Compendium";
-        public const string ModVersion = "1.4.0";
+        public const string ModVersion = "1.4.1";
 
         private AnglerRewardCatalog _anglerRewardCatalog;
         private ArmorSetCatalog _armorSetCatalog;

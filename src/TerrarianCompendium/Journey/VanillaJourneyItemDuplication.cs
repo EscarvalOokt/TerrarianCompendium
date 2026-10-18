@@ -14,7 +14,13 @@ namespace TerrarianCompendium.Journey
 
             var sourceItem = new Item();
             sourceItem.SetDefaults(itemId);
-            ItemSlot.Handle([sourceItem], JourneyDuplicationContext);
+            Item[] items = [sourceItem];
+
+            // Preserve vanilla handling without Core's ItemSlot.Handle panel click-through block.
+            ItemSlot.OverrideHover(items, JourneyDuplicationContext);
+            ItemSlot.LeftClick(items, JourneyDuplicationContext);
+            ItemSlot.RightClick(items, JourneyDuplicationContext);
+            ItemSlot.MouseHover(items, JourneyDuplicationContext);
             return true;
         }
     }
