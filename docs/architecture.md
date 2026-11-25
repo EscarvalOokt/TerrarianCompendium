@@ -62,7 +62,7 @@ The following are not required for the current scope:
 
 ## Current compatibility contract
 
-The current development configuration targets Terraria 1.4.5.8, TerrariaModder Core 0.4.2, and .NET Framework 4.8 within the vanilla-only product scope described above. This identifies the current target, not a compatibility guarantee for a range of Core versions. Moving to another Terraria/TerrariaModder target or expanding compatibility guarantees requires a separate decision and revalidation.
+The current development configuration targets Terraria 1.4.6.1, TerrariaModder Core 0.4.3, and .NET Framework 4.8 within the vanilla-only product scope described above. This identifies the current target, not a compatibility guarantee for a range of Core versions. Moving to another Terraria/TerrariaModder target or expanding compatibility guarantees requires a separate decision and revalidation.
 
 Persistence and migration contracts:
 
@@ -91,8 +91,8 @@ These boundaries are part of the current architecture. Expanding them requires a
 
 The current implementation provides the following architecture-relevant baseline:
 
-- product/package/project identity `Terrarian Compendium` / `terrarian-compendium` / `TerrarianCompendium`, development version `1.4.0`, on .NET Framework 4.8, targeting Terraria 1.4.5.8 and TerrariaModder Core 0.4.2;
-- immutable content-lifetime Item, Armor Set, Recipe, Shimmer transformation, NPC, Angler reward, acquisition, taxonomy, sorting, and persistent-recipe-identity data, replaced as complete snapshots when refresh is required;
+- product/package/project identity `Terrarian Compendium` / `terrarian-compendium` / `TerrarianCompendium`, development version `1.5.0`, on .NET Framework 4.8, targeting Terraria 1.4.6.1 and TerrariaModder Core 0.4.3;
+- immutable catalogs and indices, with world-specific Item, Armor Set, Shimmer and Angler reward data rebuilt when entering a world;
 - per-character collection state with versioned sidecar persistence, controlled legacy migration, validated-backup recovery, discovery from supported player/storage sources, and optional Terraria-owned Journey integration;
 - a production Item Browser with independent navigation/search/taxonomy/completion/research/crafting/NPC-drop/merchant-source filters, eight taxonomy facets, deterministic sorting, localized Item text, and compact Item Details backed by immutable Details-only base stat metadata and shared icon/value/coin presentation;
 - dedicated immutable `WorldLootSourceIndex`, `OpenableItemLootIndex`, `FishingSourceIndex`, and `MerchantSourceIndex` relations consumed by Details/browser projections without changing collection discovery ownership;
@@ -121,7 +121,7 @@ Its responsibilities include:
 - obtaining TerrariaModder configuration and logging;
 - registering lifecycle/frame callbacks and keybinds;
 - creating and retaining the project-owned localization service and synchronizing it with the active Terraria culture;
-- creating retained content-lifetime catalogs and indices;
+- building the world-specific Item catalog and its dependent indices, and retaining world-independent catalogs;
 - creating world/character browser-session state;
 - creating browser-composition state such as Recipe, Shimmer, and Bestiary filters;
 - constructing domain-specific browser/detail models and views;
@@ -236,7 +236,7 @@ For fully researched Items in a Journey-compatible context, the same shared sema
 
 Item names are always searchable. Base item description text is an explicit opt-in search dimension.
 
-Culture-sensitive vanilla Item names and base descriptions belong to the content-lifetime `ItemTextIndex`. The index is replaced atomically for the active Terraria culture and exposes a revision consumed by search, sorting, Details, and other player-facing Item-name projections. `ItemCatalogEntry.Name` remains bootstrap/fallback metadata rather than the live localized UI source. Dynamic player/world-dependent tooltip output is outside this immutable text snapshot contract.
+Culture-sensitive vanilla Item names and base descriptions belong to the current world's `ItemTextIndex`. The index is replaced atomically for the active Terraria culture and exposes a revision consumed by search, sorting, Details, and other player-facing Item-name projections. `ItemCatalogEntry.Name` remains bootstrap/fallback metadata rather than the live localized UI source. Dynamic player/world-dependent tooltip output is outside this immutable text snapshot contract.
 
 Common item sorting modes are `Native`, `Item ID`, `Name`, `Value`, and `Rarity`.
 
@@ -267,7 +267,7 @@ Completion/research/crafting/NPC-drop/merchant-source filters therefore do not r
 
 Base Item stats that belong to Details presentation but are not sorting concerns are owned by immutable `ItemDetailsStats` metadata rather than being added to `ItemSortMetrics`. The current contract covers the display damage type, base knockback, applicable base critical-hit chance, base use-time ticks, and positive standalone tag damage.
 
-These values describe the unprefixed base vanilla Item definition used by the content-lifetime catalog. Prefix-adjusted instance values and player/equipment/buff/runtime modifiers remain outside this immutable metadata. Terraria-dependent extraction is performed before the UI projection; Item Details views consume projected project values rather than recomputing Terraria internals.
+These values describe the unprefixed vanilla Item definition selected by Terraria for the current world. Prefix-adjusted instance values and player/equipment/buff/runtime modifiers remain outside this immutable metadata. Terraria-dependent extraction is performed before the UI projection; Item Details views consume projected project values rather than recomputing Terraria internals.
 
 Damage type is a player-facing Details projection and does not replace overlapping raw Terraria damage-class flags or project taxonomy memberships. Use time remains the base `useTime` value in game-update ticks and is not treated as a complete attack-cycle or attacks-per-second value. Standalone tag damage represents only the positive intrinsic `WhipTagEffect.TagDamage` contribution and does not imply that an Item with no positive standalone value has no tag effect.
 
@@ -345,13 +345,13 @@ The persistent descriptor excludes the raw runtime recipe index, runtime recipe-
 
 `RecipePersistentKeyIndex` maps runtime recipe indices to persistent keys and persistent keys back to matching catalog recipes. Exact structural duplicates intentionally share one persistent identity; the runtime index is not used as a persistence tie-breaker.
 
-The v1 persistent-key contract is validated for the current Terraria 1.4.5.8 compatibility target. It is not a general guarantee of cross-version stability: future Terraria/build changes require explicit revalidation and, where necessary, an explicit migration decision before the compatibility scope is expanded.
+The v1 persistent-key contract retains the key format used with Terraria 1.4.5.8. It is not a general guarantee of cross-version stability: future Terraria/build changes require explicit revalidation and, where necessary, an explicit migration decision before the compatibility scope is expanded.
 
 ### Current craftability and direct crafting
 
 `CraftingAvailabilityState` owns current runtime craftability for the active session.
 
-The existing runtime scanner refreshes Terraria-owned adjacency and owned-item crafting inputs, evaluates catalog recipes through Terraria's current environment/material predicates, and replaces the result as a revisioned snapshot. `Main.availableRecipe` is not treated as the authoritative craftability source.
+A visible Item or Recipe detail or a list filtered by current craftability requests a scan before it displays the result. While that view stays active, subsequent scans run every ten game ticks. The scanner refreshes Terraria-owned adjacency and owned-item crafting inputs, evaluates catalog recipes through Terraria's current environment/material predicates, and replaces the result as a revisioned snapshot. `Main.availableRecipe` is not treated as the authoritative craftability source.
 
 Browser/detail models read this state through the owner; they do not independently recompute Terraria crafting semantics. `ItemCraftingAvailability` provides the deterministic Item→currently-craftable-producing-recipes projection used by the direct-crafting UI without becoming a second craftability owner.
 
@@ -465,7 +465,7 @@ Bestiary search resolves finalized display names independently of Vanilla unknow
 
 ### NPC Details projection
 
-`NpcDetailsModel` is a domain-specific projection over `NpcCatalog`, `NpcLootIndex`, optional `MerchantSourceIndex`, item text/collection state, and a Terraria-facing metadata provider. Terraria-dependent extraction remains behind `VanillaBestiaryNativeBridge`; the model exposes an injectable metadata-provider seam for deterministic tests while the production path uses the native bridge. The native metadata cache is bounded to the current world session and is cleared when a new world is loaded so world-dependent snapshots are not reused across world boundaries.
+`NpcDetailsModel` is a domain-specific projection over `NpcCatalog`, independently available loot and merchant indices, item text/collection state, and a Terraria-facing metadata provider. Terraria-dependent extraction remains behind `VanillaBestiaryNativeBridge`; the model exposes an injectable metadata-provider seam for deterministic tests while the production path uses the native bridge. NPC Details reuses loot and stock rows until their inputs change, including difficulty, language, collection progress and dynamic drop descriptions. The kill counter and banner progress update independently. If the loot index fails to load, the card can still display NPC statistics and merchant stock. The native metadata cache is bounded to the current world session and is cleared when a new world is loaded so world-dependent snapshots are not reused across world boundaries.
 
 NPC Details uses a local `NpcDifficultyMode` (`Classic`, `Expert`, `Master`) that is presentation state, not a browser destination or persisted preference. Difficulty-specific stats use native NPC scaling for a single-player override and the current active-world progression state, while finalized Bestiary adjustments and `HideStats` remain authoritative. Difficulty-dependent composite-stat adjustments use the same selected mode; in particular, aggregate Eater of Worlds health uses the segment-count mapping for the selected Details difficulty rather than the difficulty of the currently open world.
 
@@ -529,11 +529,11 @@ The production browser retains Vanilla Terraria UI composition while using the s
 
 | Layer | Responsibility |
 | --- | --- |
-| TerrariaModder Core 0.4.2 | Mod lifecycle, config, logging, keybinds, Core UI services, shared styles/colors, tooltip services, and the renderer/input APIs used by the adapter. |
+| TerrariaModder Core 0.4.3 | Mod lifecycle, config, logging, keybinds, Core UI services, shared styles/colors, tooltip services, and the renderer/input APIs used by the adapter. |
 | TerrariaWindowKit | Root registration, open/close/disposal, activation and Core draw/bounds ownership, fitted geometry, drag/resize, pin state, Escape arbitration and shared coordination of participating windows. |
 | Terrarian Compendium | Vanilla `UserInterface` hierarchy, browser composition and navigation, header/button/grip hit testing, native widget input, text focus, transient popovers and tooltip content, and delivery of wheel input to the owned widgets. |
 
-`TerrarianCompendium.csproj` imports `TerrariaWindowKit.Source.projitems` from a sibling `TerrariaWindowKit` checkout, with `TerrariaWindowKitIncludeCore=true`. Sources compile into the Compendium assembly; there is no separate runtime toolkit DLL. The current `1.4.0` development baseline uses TerrariaWindowKit `v1.1.0`; the project import does not pin a tag or commit, so the actual checkout must still be identified for a build or candidate. WindowKit is MIT-licensed; its source/API contracts belong to the toolkit project, not to Compendium documentation. Independently compiled consumers require compatible coordinator protocol and Core runtime signatures to share the framework runtime.
+`TerrarianCompendium.csproj` imports `TerrariaWindowKit.Source.projitems` from a sibling `TerrariaWindowKit` checkout, with `TerrariaWindowKitIncludeCore=true`. Sources compile into the Compendium assembly; there is no separate runtime toolkit DLL. The current `1.5.0` development baseline uses TerrariaWindowKit `v1.1.0`; the project import does not pin a tag or commit, so the actual checkout must still be identified for a build or candidate. WindowKit is MIT-licensed; its source/API contracts belong to the toolkit project, not to Compendium documentation. Independently compiled consumers require compatible coordinator protocol and Core runtime signatures to share the framework runtime.
 
 `VanillaUiHost` is the single infrastructure adapter between these layers, not a domain owner. It connects through `SharedCoordinator`, creates `CoreWindowBackend` and `WindowHost` on registration, and wires draw, bounds, close, focus, popup and wheel callbacks. `WindowHost.Bounds` is applied to `BrowserUiState`/`VanillaBrowserPanel`; drag and bottom-right resize begin after Compendium-owned hit tests and advance through toolkit pointer operations. The existing `CoreResizeGripRenderer` supplies the optional standard `18 × 18` grip presentation. The root enables `Pinnable`; its localized header button uses `CorePinButtonRenderer` for presentation and `WindowHost.SetPinned()` for the action. WindowKit alone owns `IsPinned`, while Compendium owns button layout, hit testing and tooltip. Pin resets on close/reopen, prevents only Escape from closing that root, and does not prevent explicit close (`Alt+I` or the close button), options-menu close or world-unload close.
 
@@ -559,8 +559,8 @@ Presentation changes may evolve control composition, spacing, icon framing, scro
 
 ## Persistence ownership
 
-- Per-character collection progress remains separate from client-local state. The sidecar identity includes the normalized active player save path and `IsCloudSave`; Local and Cloud representations therefore resolve to different project identities. Automatic migration or merge across changed identities is not guaranteed. Its sidecar persistence preserves a validated backup when rewriting a primary file recovered from that backup, while ordinary successful saves retain normal backup rotation. If an existing backup is needed for recovery and cannot be read, loading fails and does not authorize an automatic rewrite that could replace that backup.
-- Recipe favorites are client-local and persist versioned `RecipePersistentKey` values separately from per-character collection progress. Valid unresolved keys are preserved rather than heuristically remapped. Duplicate/order normalization and validated-backup recovery are storage concerns; a recovery rewrite preserves the verified backup rather than rotating the corrupt primary over it. If an existing backup is needed for recovery and cannot be read, loading fails and does not authorize an automatic rewrite. Unsupported schema versions disable writes so newer data is not destructively overwritten. No migration from other mods is part of this favorites contract.
+- Per-character collection progress remains separate from client-local state. The sidecar identity includes the normalized active player save path and `IsCloudSave`; Local and Cloud representations therefore resolve to different project identities. Automatic migration or merge across changed identities is not guaranteed. Its sidecar persistence preserves a validated backup when rewriting a primary file recovered from that backup, while ordinary successful saves retain normal backup rotation. A temporarily unreadable primary defers recovery until it can be read. Changed collection data is checkpointed every 30 seconds and on world exit. Failed writes remain associated with the original character for retry. Positive Item IDs from another catalog survive a round trip through this version.
+- Recipe favorites are client-local and persist versioned `RecipePersistentKey` values separately from per-character collection progress. Valid unresolved keys are preserved rather than heuristically remapped. Duplicate/order normalization and validated-backup recovery are storage concerns; a recovery rewrite preserves the verified backup rather than rotating the corrupt primary over it. If an existing backup is needed for recovery and cannot be read, loading fails and does not authorize an automatic rewrite. Unsupported schema versions disable writes so newer data is not destructively overwritten. A temporary read failure disables editing and triggers a retry after five seconds. The star becomes available when the store is ready.
 - Terraria-native Journey, crafting-availability, Bestiary, and Angler quest/progress state is not duplicated into project persistence without a confirmed need.
 - The supported product-rebrand compatibility path is the controlled migration from legacy `item-checklist` collection progress to the current `terrarian-compendium` root.
 

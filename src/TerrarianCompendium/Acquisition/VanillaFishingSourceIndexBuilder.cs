@@ -167,7 +167,7 @@ namespace TerrarianCompendium.Acquisition
             if (conditions == null || conditions.Length != 1 || conditions[0] == null)
             {
                 throw new InvalidOperationException(
-                    "Expected Terraria 1.4.5.8 AddStopper rule to contain exactly one fishing condition.");
+                    "Expected Terraria AddStopper rule to contain exactly one fishing condition.");
             }
 
             if (!knownConditionFieldNames.TryGetValue(conditions[0], out string fieldName))
@@ -280,7 +280,7 @@ namespace TerrarianCompendium.Acquisition
             if (property == null || property.PropertyType != typeof(bool) || property.GetIndexParameters().Length != 0)
             {
                 throw new InvalidOperationException(
-                    $"Expected Terraria 1.4.5.8 fishing rule property '{IsStopperPropertyName}' was not found with the expected type.");
+                    $"Expected Terraria fishing rule property '{IsStopperPropertyName}' was not found with the expected type.");
             }
 
             return property;
@@ -306,7 +306,7 @@ namespace TerrarianCompendium.Acquisition
             if (rulesField == null || rulesField.FieldType != typeof(List<FishDropRule>))
             {
                 throw new InvalidOperationException(
-                    $"Expected Terraria 1.4.5.8 fishing rule field '{RulesFieldName}' was not found with the expected type.");
+                    $"Expected Terraria fishing rule field '{RulesFieldName}' was not found with the expected type.");
             }
 
             if (rulesField.GetValue(ruleList) is not List<FishDropRule> rules)

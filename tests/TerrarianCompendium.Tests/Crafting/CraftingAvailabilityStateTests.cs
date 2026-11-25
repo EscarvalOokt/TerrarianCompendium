@@ -31,7 +31,7 @@ namespace TerrarianCompendium.Tests.Crafting
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2));
 
-            bool changed = state.ReplaceSnapshot(new[] { 2, 0 });
+            bool changed = state.ReplaceSnapshot([2, 0]);
 
             Assert.That(changed, Is.True);
             Assert.That(state.Count, Is.EqualTo(2));
@@ -44,9 +44,9 @@ namespace TerrarianCompendium.Tests.Crafting
         public void ReplaceSnapshot_WithIdenticalSnapshot_DoesNotChangeRevision()
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2));
-            state.ReplaceSnapshot(new[] { 0, 2 });
+            state.ReplaceSnapshot([0, 2]);
 
-            bool changed = state.ReplaceSnapshot(new[] { 0, 2 });
+            bool changed = state.ReplaceSnapshot([0, 2]);
 
             Assert.That(changed, Is.False);
             Assert.That(state.Revision, Is.EqualTo(1));
@@ -56,9 +56,9 @@ namespace TerrarianCompendium.Tests.Crafting
         public void ReplaceSnapshot_WithSameSetInDifferentOrder_DoesNotChangeRevision()
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2, 5));
-            state.ReplaceSnapshot(new[] { 0, 2, 5 });
+            state.ReplaceSnapshot([0, 2, 5]);
 
-            bool changed = state.ReplaceSnapshot(new[] { 5, 0, 2 });
+            bool changed = state.ReplaceSnapshot([5, 0, 2]);
 
             Assert.That(changed, Is.False);
             Assert.That(state.Revision, Is.EqualTo(1));
@@ -69,8 +69,8 @@ namespace TerrarianCompendium.Tests.Crafting
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2));
 
-            state.ReplaceSnapshot(new[] { 0, 0, 2, 2 });
-            bool changed = state.ReplaceSnapshot(new[] { 2, 0 });
+            state.ReplaceSnapshot([0, 0, 2, 2]);
+            bool changed = state.ReplaceSnapshot([2, 0]);
 
             Assert.That(changed, Is.False);
             Assert.That(state.Count, Is.EqualTo(2));
@@ -81,9 +81,9 @@ namespace TerrarianCompendium.Tests.Crafting
         public void ReplaceSnapshot_WhenRecipeIsAdded_IncrementsRevisionOnce()
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2));
-            state.ReplaceSnapshot(new[] { 0 });
+            state.ReplaceSnapshot([0]);
 
-            bool changed = state.ReplaceSnapshot(new[] { 0, 2 });
+            bool changed = state.ReplaceSnapshot([0, 2]);
 
             Assert.That(changed, Is.True);
             Assert.That(state.Revision, Is.EqualTo(2));
@@ -94,9 +94,9 @@ namespace TerrarianCompendium.Tests.Crafting
         public void ReplaceSnapshot_WhenRecipeIsRemoved_IncrementsRevisionOnce()
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2));
-            state.ReplaceSnapshot(new[] { 0, 2 });
+            state.ReplaceSnapshot([0, 2]);
 
-            bool changed = state.ReplaceSnapshot(new[] { 2 });
+            bool changed = state.ReplaceSnapshot([2]);
 
             Assert.That(changed, Is.True);
             Assert.That(state.Revision, Is.EqualTo(2));
@@ -108,10 +108,10 @@ namespace TerrarianCompendium.Tests.Crafting
         public void ReplaceSnapshot_WithEmptySnapshot_ClearsNonEmptyStateOnce()
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0));
-            state.ReplaceSnapshot(new[] { 0 });
+            state.ReplaceSnapshot([0]);
 
-            bool changed = state.ReplaceSnapshot(Array.Empty<int>());
-            bool changedAgain = state.ReplaceSnapshot(Array.Empty<int>());
+            bool changed = state.ReplaceSnapshot([]);
+            bool changedAgain = state.ReplaceSnapshot([]);
 
             Assert.That(changed, Is.True);
             Assert.That(changedAgain, Is.False);
@@ -124,7 +124,7 @@ namespace TerrarianCompendium.Tests.Crafting
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2));
 
-            bool changed = state.ReplaceSnapshot(new[] { 0, 1, 2, 999 });
+            bool changed = state.ReplaceSnapshot([0, 1, 2, 999]);
 
             Assert.That(changed, Is.True);
             Assert.That(state.Count, Is.EqualTo(2));
@@ -139,7 +139,7 @@ namespace TerrarianCompendium.Tests.Crafting
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0));
 
-            bool changed = state.ReplaceSnapshot(new[] { 1, 999 });
+            bool changed = state.ReplaceSnapshot([1, 999]);
 
             Assert.That(changed, Is.False);
             Assert.That(state.Revision, Is.EqualTo(0));
@@ -157,12 +157,12 @@ namespace TerrarianCompendium.Tests.Crafting
         public void CreateAvailableRecipeIndexSnapshot_ReturnsSortedReadOnlySnapshot()
         {
             var state = new CraftingAvailabilityState(CreateCatalog(0, 2, 5));
-            state.ReplaceSnapshot(new[] { 5, 0, 2 });
+            state.ReplaceSnapshot([5, 0, 2]);
 
             IReadOnlyList<int> snapshot = state.CreateAvailableRecipeIndexSnapshot();
             var mutableView = (IList<int>)snapshot;
 
-            Assert.That(snapshot, Is.EqualTo(new[] { 0, 2, 5 }));
+            Assert.That(snapshot, Is.EqualTo([0, 2, 5]));
             Assert.Throws<NotSupportedException>((Action)(() => { mutableView.Add(7); }));
         }
 
@@ -177,7 +177,7 @@ namespace TerrarianCompendium.Tests.Crafting
                         runtimeIndex,
                         runtimeIndex + 1,
                         1,
-                        Array.Empty<RecipeIngredient>(),
+                        [],
                         new RecipeEnvironmentRequirements(null, false, false, false, false, false, false, false),
                         isAlchemy: false));
             }

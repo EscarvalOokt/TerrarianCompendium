@@ -18,26 +18,19 @@ namespace TerrarianCompendium.Session
         private const byte JourneyCharacterDifficulty = 3;
 
         private readonly VanillaAnglerQuestStateScanner _anglerQuestStateScanner;
-        private readonly CharacterProgressPathResolver _characterProgressPathResolver;
-        private readonly ChecklistProgressStore _checklistProgressStore;
+        private readonly ChecklistProgressPersistence _checklistPersistence;
         private readonly VanillaCraftingAvailabilityScanner _craftingAvailabilityScanner;
         private readonly EquippedItemDiscoveryScanner _equippedItemDiscoveryScanner;
         private readonly InventoryDiscoveryScanner _inventoryDiscoveryScanner;
         private readonly JourneyResearchDiscoveryScanner _journeyResearchDiscoveryScanner;
-        private readonly ILogger _logger;
         private readonly VanillaStorageDiscoveryScanner _vanillaStorageDiscoveryScanner;
-        private string _checklistProgressPath;
         private bool _disposed;
-        private int _persistedFoundCount;
-        private bool _persistencePreserveBackupOnNextSave;
-        private bool _persistenceRewriteRequired;
-        private bool _persistenceWriteEnabled;
 
         public BrowserSession(
             ItemCatalog catalog,
             AnglerRewardCatalog anglerRewardCatalog,
             RecipeCatalog recipeCatalog,
-            ChecklistProgressStore checklistProgressStore,
+            ChecklistProgressPersistence checklistPersistence,
             CharacterProgressPathResolver characterProgressPathResolver,
             ILogger logger,
             Player initialPlayer,
@@ -47,11 +40,10 @@ namespace TerrarianCompendium.Session
             if (catalog == null)
                 throw new ArgumentNullException(nameof(catalog));
 
-            _checklistProgressStore =
-                checklistProgressStore ?? throw new ArgumentNullException(nameof(checklistProgressStore));
-            _characterProgressPathResolver = characterProgressPathResolver ??
-                                             throw new ArgumentNullException(nameof(characterProgressPathResolver));
-            _logger = logger;
+            _checklistPersistence =
+                checklistPersistence ?? throw new ArgumentNullException(nameof(checklistPersistence));
+            if (characterProgressPathResolver == null)
+                throw new ArgumentNullException(nameof(characterProgressPathResolver));
 
             ChecklistState = new ChecklistState(catalog);
 
@@ -65,7 +57,11 @@ namespace TerrarianCompendium.Session
                     _anglerQuestStateScanner.Update(initialPlayer);
             }
 
-            RestoreChecklistProgress();
+            if (characterProgressPathResolver.TryResolveCurrentProgressPaths(out string path, out string legacyPath))
+                _checklistPersistence.Open(path, legacyPath, ChecklistState, DateTime.UtcNow);
+            else
+                logger?.Warn(
+                    $"[{TerrarianCompendiumMod.ModName}] The active character save path could not be resolved.");
 
             _inventoryDiscoveryScanner = new InventoryDiscoveryScanner(ChecklistState);
             _equippedItemDiscoveryScanner = new EquippedItemDiscoveryScanner(ChecklistState);
@@ -107,8 +103,7 @@ namespace TerrarianCompendium.Session
             if (_disposed)
                 return;
 
-            SaveChecklistProgressIfNeeded();
-            ResetPersistenceSession();
+            _checklistPersistence.Close();
 
             _disposed = true;
         }
@@ -129,7 +124,6 @@ namespace TerrarianCompendium.Session
             if (inventory == null)
                 return;
 
-            _craftingAvailabilityScanner?.Update(player);
             _inventoryDiscoveryScanner.Scan(inventory);
             _equippedItemDiscoveryScanner.Scan(player);
 
@@ -137,75 +131,10 @@ namespace TerrarianCompendium.Session
                 _vanillaStorageDiscoveryScanner.Scan(player);
         }
 
-        private void RestoreChecklistProgress()
+        public void RefreshCraftingAvailability(Player player)
         {
-            ResetPersistenceSession();
-
-            if (!_characterProgressPathResolver.TryResolveCurrentProgressPaths(
-                    out string progressPath,
-                    out string legacyProgressPath))
-            {
-                _logger?.Warn(
-                    $"[{TerrarianCompendiumMod.ModName}] " +
-                    "Checklist persistence is unavailable because the active character save path " +
-                    "could not be resolved.");
-
-                return;
-            }
-
-            _checklistProgressPath = progressPath;
-
-            ChecklistProgressLoadResult loadResult = _checklistProgressStore.LoadWithLegacyFallback(
-                progressPath,
-                legacyProgressPath,
-                out bool usedLegacyPath);
-
-            _persistenceWriteEnabled = loadResult.Status != ChecklistProgressLoadStatus.UnsupportedVersion &&
-                                       loadResult.Status != ChecklistProgressLoadStatus.Failed;
-
-            foreach (int itemId in loadResult.FoundItemIds)
-                ChecklistState.MarkFound(itemId);
-
-            bool loadedFromLegacy = usedLegacyPath &&
-                                    (loadResult.Status == ChecklistProgressLoadStatus.Loaded ||
-                                     loadResult.Status == ChecklistProgressLoadStatus.RecoveredFromBackup);
-
-            _persistedFoundCount = ChecklistState.FoundCount;
-            _persistencePreserveBackupOnNextSave = loadResult.Status == ChecklistProgressLoadStatus.RecoveredFromBackup;
-            _persistenceRewriteRequired = loadResult.RequiresRewrite || loadedFromLegacy;
-
-            if (loadedFromLegacy)
-                SaveChecklistProgressIfNeeded();
-        }
-
-        private void SaveChecklistProgressIfNeeded()
-        {
-            if (!_persistenceWriteEnabled || string.IsNullOrWhiteSpace(_checklistProgressPath))
-                return;
-
-            if (!_persistenceRewriteRequired && ChecklistState.FoundCount == _persistedFoundCount)
-                return;
-
-            if (!_checklistProgressStore.Save(
-                    _checklistProgressPath,
-                    ChecklistState.CreateFoundItemIdSnapshot(),
-                    _persistencePreserveBackupOnNextSave))
-            {
-                return;
-            }
-
-            _persistedFoundCount = ChecklistState.FoundCount;
-            _persistencePreserveBackupOnNextSave = false;
-            _persistenceRewriteRequired = false;
-        }
-
-        private void ResetPersistenceSession()
-        {
-            _checklistProgressPath = null;
-            _persistedFoundCount = 0;
-            _persistencePreserveBackupOnNextSave = false;
-            _persistenceRewriteRequired = false;
-            _persistenceWriteEnabled = false;
+            if (!_disposed && player?.inventory != null)
+                _craftingAvailabilityScanner?.Update(player);
         }
     }
 }

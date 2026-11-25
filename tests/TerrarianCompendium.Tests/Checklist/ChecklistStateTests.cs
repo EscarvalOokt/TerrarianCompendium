@@ -175,7 +175,7 @@ namespace TerrarianCompendium.Tests.Checklist
         [Test]
         public void CompletionRatio_WithEmptyCatalog_ReturnsZero()
         {
-            var catalog = ItemCatalog.Create(Array.Empty<ItemCatalogEntry>());
+            var catalog = ItemCatalog.Create([]);
             var state = new ChecklistState(catalog);
 
             Assert.That(state.FoundCount, Is.EqualTo(0));
@@ -263,7 +263,7 @@ namespace TerrarianCompendium.Tests.Checklist
 
             IReadOnlyList<int> snapshot = state.CreateFoundItemIdSnapshot();
 
-            Assert.That(snapshot, Is.EqualTo(new[] { 1, 3, 4 }));
+            Assert.That(snapshot, Is.EqualTo([1, 3, 4]));
         }
 
         [Test]
@@ -278,8 +278,8 @@ namespace TerrarianCompendium.Tests.Checklist
 
             Assert.That(state.MarkFound(2), Is.True);
 
-            Assert.That(snapshot, Is.EqualTo(new[] { 1 }));
-            Assert.That(state.CreateFoundItemIdSnapshot(), Is.EqualTo(new[] { 1, 2 }));
+            Assert.That(snapshot, Is.EqualTo([1]));
+            Assert.That(state.CreateFoundItemIdSnapshot(), Is.EqualTo([1, 2]));
         }
 
         [Test]
@@ -293,7 +293,7 @@ namespace TerrarianCompendium.Tests.Checklist
 
             IReadOnlyList<int> snapshot = state.CreateFoundItemIdSnapshot();
 
-            Assert.That(snapshot, Is.EqualTo(new[] { 2 }));
+            Assert.That(snapshot, Is.EqualTo([2]));
         }
 
         [Test]
@@ -307,7 +307,7 @@ namespace TerrarianCompendium.Tests.Checklist
 
             IReadOnlyList<int> snapshot = state.CreateFoundItemIdSnapshot();
 
-            Assert.That(snapshot, Is.EqualTo(new[] { 1 }));
+            Assert.That(snapshot, Is.EqualTo([1]));
         }
 
         private static ItemCatalog CreateCatalog(params int[] itemIds)

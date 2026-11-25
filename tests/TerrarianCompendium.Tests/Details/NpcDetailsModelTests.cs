@@ -222,6 +222,21 @@ namespace TerrarianCompendium.Tests.Details
         }
 
         [Test]
+        public void TryGetProjection_WithoutLootIndex_PreservesNpcMetadataAndMerchantStock()
+        {
+            var stock = new MerchantSourceIndex([new MerchantSourceRelation(10, 1, new MerchantSourceVariant(1, []))]);
+            TestContextData context = CreateContext(merchantSourceIndex: stock, lootDataAvailable: false);
+
+            Assert.That(
+                context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection projection),
+                Is.True);
+            Assert.That(projection.Name, Is.EqualTo("NPC"));
+            Assert.That(projection.LootDataAvailable, Is.False);
+            Assert.That(projection.LootRows, Is.Empty);
+            Assert.That(projection.MerchantStock[0].Item.ItemId, Is.EqualTo(1));
+        }
+
+        [Test]
         public void TryGetProjection_WithMerchantBackendButNoStock_ReportsAvailableEmptyStock()
         {
             TestContextData context = CreateContext(merchantSourceIndex: new MerchantSourceIndex([]));
@@ -507,7 +522,7 @@ namespace TerrarianCompendium.Tests.Details
                     2,
                     null,
                     [conditions[entry.NetId]],
-                    Array.Empty<NpcBestiaryDebuffImmunity>()));
+                    []));
 
             context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection before);
             conditions[10] = new NpcBestiarySpawnCondition("Bestiary_Biomes.Jungle", "Jungle");
@@ -659,6 +674,107 @@ namespace TerrarianCompendium.Tests.Details
             Assert.That(second, Is.SameAs(first));
         }
 
+        [Test]
+        public void TryGetProjection_RechecksOnlyDynamicLootDescriptionsOnCacheHit()
+        {
+            var stableRuleChecks = 0;
+            var dynamicReads = 0;
+            string description = null;
+            var stable = new NpcLootCondition(
+                _ =>
+                {
+                    stableRuleChecks++;
+                    return true;
+                },
+                "Static");
+            var dynamic = new NpcLootCondition(
+                _ => true,
+                () =>
+                {
+                    dynamicReads++;
+                    // ReSharper disable once AccessToModifiedClosure
+                    return description;
+                });
+            TestContextData context = CreateContext(
+                relations: [new NpcLootRelation(10, 1, 1, 1, 1f, [stable, dynamic])]);
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection first);
+            int initialStableChecks = stableRuleChecks;
+            int initialDynamicReads = dynamicReads;
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection idle);
+            Assert.That(idle, Is.SameAs(first));
+            Assert.That(stableRuleChecks, Is.EqualTo(initialStableChecks));
+            Assert.That(dynamicReads, Is.EqualTo(initialDynamicReads + 1));
+            Assert.That(idle.LootRows[0].ConditionDescriptions, Is.EqualTo(["Static"]));
+
+            description = "Live event";
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection duringEvent);
+            Assert.That(duringEvent.LootRows[0].ConditionDescriptions, Is.EqualTo(["Static", "Live event"]));
+            description = null;
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection afterEvent);
+            Assert.That(afterEvent.LootRows[0].ConditionDescriptions, Is.EqualTo(["Static"]));
+        }
+
+        [Test]
+        public void TryGetProjection_RefreshesLiveKillsWithoutRebuildingStableLootAndStock()
+        {
+            var lootChecks = 0;
+            var nameLookups = 0;
+            var slain = 1;
+            var condition = new NpcLootCondition(
+                _ =>
+                {
+                    lootChecks++;
+                    return true;
+                },
+                "Always");
+            var stock = new MerchantSourceIndex(
+            [
+                new MerchantSourceRelation(
+                    10,
+                    1,
+                    new MerchantSourceVariant(
+                        1,
+                        [new MerchantSourceCondition(MerchantSourceConditionKind.NpcPresent, 20)]))
+            ]);
+            TestContextData context = CreateContext(
+                // ReSharper disable AccessToModifiedClosure
+                killStatisticsProvider: _ => new NpcBestiaryKillStatisticsSnapshot(true, slain, 2, slain, 50),
+                // ReSharper restore AccessToModifiedClosure
+                relations: [new NpcLootRelation(10, 1, 1, 1, 1f, [condition])],
+                merchantSourceIndex: stock,
+                npcNameProvider: _ =>
+                {
+                    nameLookups++;
+                    return "Merchant";
+                });
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection first);
+            int firstLootChecks = lootChecks;
+            int firstNameLookups = nameLookups;
+            Assert.That(firstLootChecks, Is.Positive);
+            Assert.That(firstNameLookups, Is.Positive);
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection idle);
+            slain++;
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Classic, out NpcDetailsProjection afterKill);
+
+            Assert.That(idle, Is.SameAs(first));
+            Assert.That(afterKill.SlainCount, Is.EqualTo(2));
+            Assert.That(afterKill.LootRows[0], Is.SameAs(first.LootRows[0]));
+            Assert.That(afterKill.MerchantStock[0], Is.SameAs(first.MerchantStock[0]));
+            Assert.That(lootChecks, Is.EqualTo(firstLootChecks));
+            Assert.That(nameLookups, Is.EqualTo(firstNameLookups));
+
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Expert, out _);
+            Assert.That(lootChecks, Is.GreaterThan(firstLootChecks));
+            Assert.That(nameLookups, Is.EqualTo(firstNameLookups));
+            context.Checklist.MarkFound(1);
+            context.Model.TryGetProjection(10, NpcDifficultyMode.Expert, out NpcDetailsProjection afterChecklist);
+            Assert.That(nameLookups, Is.GreaterThan(firstNameLookups));
+            Assert.That(afterChecklist.LootRows[0].Item.IsFound, Is.True);
+            Assert.That(afterChecklist.MerchantStock[0].Item.IsFound, Is.True);
+        }
+
         private static TestContextData CreateContext(
             Func<NpcCatalogEntry, NpcDifficultyMode, NpcBestiaryMetadataSnapshot> metadataFactory = null,
             Func<NpcCatalogEntry, NpcBestiaryKillStatisticsSnapshot> killStatisticsProvider = null,
@@ -666,7 +782,8 @@ namespace TerrarianCompendium.Tests.Details
             MerchantSourceIndex merchantSourceIndex = null,
             Func<NpcCatalogEntry, string> npcNameProvider = null,
             CompendiumLocalization localization = null,
-            Func<string, string> nativeTextResolver = null)
+            Func<string, string> nativeTextResolver = null,
+            bool lootDataAvailable = true)
         {
             var npcCatalog = NpcCatalog.Create(
             [
@@ -680,7 +797,7 @@ namespace TerrarianCompendium.Tests.Details
             ]);
             var checklist = new ChecklistState(itemCatalog);
             var itemTextIndex = new ItemTextIndex(itemCatalog);
-            var lootIndex = NpcLootIndex.Create(npcCatalog, relations ?? Array.Empty<NpcLootRelation>());
+            NpcLootIndex lootIndex = lootDataAvailable ? NpcLootIndex.Create(npcCatalog, relations ?? []) : null;
             metadataFactory ??= (_, _) => CreateMetadata(true, "NPC");
             killStatisticsProvider ??= _ => new NpcBestiaryKillStatisticsSnapshot(
                 hasKillCounter: false,

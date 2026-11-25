@@ -66,19 +66,6 @@ namespace TerrarianCompendium.Details
             _craftingAvailabilityState = craftingAvailabilityState;
             _recipeStationDisplayIndex = recipeStationDisplayIndex;
 
-            bool hasNpcRelationIndex = npcLootIndex != null || merchantSourceIndex != null;
-
-            if (hasNpcRelationIndex && npcCatalog == null)
-            {
-                throw new ArgumentException(
-                    "NPC catalog is required when NPC loot or merchant source data is provided.");
-            }
-
-            if (npcCatalog != null && !hasNpcRelationIndex)
-            {
-                throw new ArgumentException("NPC catalog requires at least one NPC relation index.");
-            }
-
             if ((armorSetCatalog == null) != (armorSetIndex == null))
             {
                 throw new ArgumentException(
@@ -86,8 +73,8 @@ namespace TerrarianCompendium.Details
             }
 
             _npcCatalog = npcCatalog;
-            _npcLootIndex = npcLootIndex;
-            _merchantSourceIndex = merchantSourceIndex;
+            _npcLootIndex = npcCatalog == null ? null : npcLootIndex;
+            _merchantSourceIndex = npcCatalog == null ? null : merchantSourceIndex;
             _armorSetCatalog = armorSetCatalog;
             _armorSetIndex = armorSetIndex;
             _worldLootSourceIndex = worldLootSourceIndex;
@@ -95,7 +82,7 @@ namespace TerrarianCompendium.Details
             _fishingSourceIndex = fishingSourceIndex;
             _shimmerTransformationIndex = shimmerTransformationIndex;
 
-            if (_npcCatalog != null)
+            if (_npcLootIndex != null || _merchantSourceIndex != null)
             {
                 _npcNameProvider = npcNameProvider ??
                                    throw new ArgumentNullException(

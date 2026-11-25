@@ -493,6 +493,124 @@ namespace TerrarianCompendium.Tests.Persistence
             return Path.Combine(_testDirectory, "progress.json");
         }
 
+        [Test]
+        public void LockedPrimary_RetriesAndMergesDiscoveriesWithoutRollingBackToBackup()
+        {
+            var store = new ChecklistProgressStore(null);
+            string path = CreateProgressPath();
+            store.Save(path, [1]);
+            store.Save(path, [1, 2]);
+            var persistence = new ChecklistProgressPersistence(store);
+            var checklist = new ChecklistState(CreateCatalog(1, 2, 3));
+            DateTime now = DateTime.UtcNow;
+
+            using (File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                Assert.That(store.Load(path).Status, Is.EqualTo(ChecklistProgressLoadStatus.Failed));
+                persistence.Open(path, path + ".legacy", checklist, now);
+                Assert.That(checklist.FoundCount, Is.Zero);
+                checklist.MarkFound(3);
+                persistence.Update(now.AddMinutes(1));
+            }
+
+            Assert.That(store.Load(path).FoundItemIds, Is.EqualTo([1, 2]));
+            Assert.That(store.Load(path + ".bak").FoundItemIds, Is.EqualTo([1]));
+            persistence.Update(now.AddMinutes(2));
+            Assert.That(checklist.CreateFoundItemIdSnapshot(), Is.EqualTo([1, 2, 3]));
+            Assert.That(store.Load(path).FoundItemIds, Is.EqualTo([1, 2, 3]));
+        }
+
+        [Test]
+        public void Checkpoint_RoundTripsUnknownIdsWithoutIncludingThemInVisibleCollection()
+        {
+            var store = new ChecklistProgressStore(null);
+            var persistence = new ChecklistProgressPersistence(store);
+            string path = CreateProgressPath();
+            store.Save(path, [1, 999]);
+            var partial = new ChecklistState(CreateCatalog(1, 2));
+            DateTime now = DateTime.UtcNow;
+            persistence.Open(path, path + ".legacy", partial, now);
+            Assert.That(partial.FoundCount, Is.EqualTo(1));
+            partial.MarkFound(2);
+            persistence.Update(now.AddSeconds(1));
+            Assert.That(store.Load(path).FoundItemIds, Is.EqualTo([1, 999]));
+            persistence.Update(now.AddMinutes(1));
+            Assert.That(store.Load(path).FoundItemIds, Is.EqualTo([1, 2, 999]));
+            persistence.Close();
+            var full = new ChecklistState(CreateCatalog(1, 2, 999));
+            persistence.Open(path, path + ".legacy", full, now.AddMinutes(2));
+            Assert.That(full.IsFound(999), Is.True);
+        }
+
+        [Test]
+        public void FailedExitSave_RetainsCharacterDiscoveriesAcrossSwitches()
+        {
+            var store = new ChecklistProgressStore(null);
+            var persistence = new ChecklistProgressPersistence(store);
+            DateTime now = DateTime.UtcNow;
+            string firstPath = CreateProgressPath();
+            string secondPath = Path.Combine(_testDirectory, "second.json");
+            ItemCatalog catalog = CreateCatalog(1, 2, 3);
+            var first = new ChecklistState(catalog);
+            persistence.Open(firstPath, firstPath + ".legacy", first, now);
+            first.MarkFound(1);
+            // A directory occupying the temp file name makes the exit write fail.
+            Directory.CreateDirectory(firstPath + ".tmp");
+            persistence.Close();
+            var second = new ChecklistState(catalog);
+            persistence.Open(secondPath, secondPath + ".legacy", second, now);
+            Assert.That(second.FoundCount, Is.Zero);
+            second.MarkFound(2);
+            persistence.Close();
+            Directory.Delete(firstPath + ".tmp");
+
+            var reopened = new ChecklistState(catalog);
+            persistence.Open(firstPath, firstPath + ".legacy", reopened, now);
+            Assert.That(reopened.CreateFoundItemIdSnapshot(), Is.EqualTo([1]));
+            Assert.That(store.Load(firstPath).FoundItemIds, Is.EqualTo([1]));
+            Assert.That(store.Load(secondPath).FoundItemIds, Is.EqualTo([2]));
+        }
+
+        [Test]
+        public void UnsupportedVersion_DoesNotWriteDiscoveriesOrRotateBackup()
+        {
+            string path = CreateProgressPath();
+            const string future = "{\"version\":3,\"foundItemIds\":[999]}";
+            File.WriteAllText(path, future);
+            File.WriteAllText(path + ".bak", "previous");
+            var state = new ChecklistState(CreateCatalog(1));
+            var persistence = new ChecklistProgressPersistence(new ChecklistProgressStore(null));
+            DateTime now = DateTime.UtcNow;
+            persistence.Open(path, path + ".legacy", state, now);
+            state.MarkFound(1);
+            persistence.Update(now.AddMinutes(1));
+            persistence.Close();
+            Assert.That(File.ReadAllText(path), Is.EqualTo(future));
+            Assert.That(File.ReadAllText(path + ".bak"), Is.EqualTo("previous"));
+        }
+
+        [Test]
+        public void PendingSave_RechecksSchemaIfFileChangesBeforeRetry()
+        {
+            string path = CreateProgressPath();
+            var store = new ChecklistProgressStore(null);
+            store.Save(path, [1]);
+            var state = new ChecklistState(CreateCatalog(1, 2));
+            var persistence = new ChecklistProgressPersistence(store);
+            DateTime now = DateTime.UtcNow;
+            persistence.Open(path, path + ".legacy", state, now);
+            state.MarkFound(2);
+            Directory.CreateDirectory(path + ".tmp");
+            persistence.Update(now.AddMinutes(1));
+            Directory.Delete(path + ".tmp");
+
+            const string future = "{\"version\":5,\"foundItemIds\":[1,9]}";
+            File.WriteAllText(path, future);
+            persistence.Update(now.AddMinutes(2));
+            persistence.Close();
+            Assert.That(File.ReadAllText(path), Is.EqualTo(future));
+        }
+
         private static ItemCatalog CreateCatalog(params int[] itemIds)
         {
             var entries = new ItemCatalogEntry[itemIds.Length];

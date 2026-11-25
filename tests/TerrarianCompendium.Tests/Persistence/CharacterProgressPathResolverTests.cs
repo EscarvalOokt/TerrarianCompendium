@@ -200,7 +200,7 @@ namespace TerrarianCompendium.Tests.Persistence
 
             foreach (char character in fileNameWithoutExtension)
             {
-                bool isLowerHex = character >= '0' && character <= '9' || character >= 'a' && character <= 'f';
+                bool isLowerHex = character is >= '0' and <= '9' || character is >= 'a' and <= 'f';
 
                 Assert.That(isLowerHex, Is.True);
             }

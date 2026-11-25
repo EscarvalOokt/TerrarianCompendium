@@ -6,9 +6,6 @@ namespace TerrarianCompendium.Crafting
 {
     internal static class VanillaCraftingAvailabilityNativeBridge
     {
-        private const ulong FnvOffsetBasis = 14695981039346656037UL;
-        private const ulong FnvPrime = 1099511628211UL;
-
         private static MethodInfo _collectItemsToCraftWithFromMethod;
         private static bool _collectorResolutionAttempted;
 
@@ -20,16 +17,12 @@ namespace TerrarianCompendium.Crafting
             if (calculation == null)
                 throw new ArgumentNullException(nameof(calculation));
 
-            var adjacencySnapshot = new AdjacencySnapshot(player);
             MethodInfo collector = ResolveCollectItemsToCraftWithFrom();
 
             if (collector == null)
-            {
-                return VanillaCraftingAvailabilityNativeExecutionResult.CollectorUnavailable(
-                    adjacencySnapshot.Fingerprint,
-                    ComputeAdjacencyFingerprint(player));
-            }
+                return VanillaCraftingAvailabilityNativeExecutionResult.CollectorUnavailable();
 
+            var adjacencySnapshot = new AdjacencySnapshot(player);
             Exception failure = null;
             bool adjacencyRestored;
 
@@ -48,27 +41,13 @@ namespace TerrarianCompendium.Crafting
                 adjacencyRestored = adjacencySnapshot.Restore(player);
             }
 
-            ulong adjacencyAfterFingerprint = ComputeAdjacencyFingerprint(player);
-
             if (failure != null)
-            {
-                return VanillaCraftingAvailabilityNativeExecutionResult.Failed(
-                    failure,
-                    adjacencySnapshot.Fingerprint,
-                    adjacencyAfterFingerprint,
-                    adjacencyRestored);
-            }
+                return VanillaCraftingAvailabilityNativeExecutionResult.Failed(failure);
 
             if (!adjacencyRestored)
-            {
-                return VanillaCraftingAvailabilityNativeExecutionResult.AdjacencyRestoreFailed(
-                    adjacencySnapshot.Fingerprint,
-                    adjacencyAfterFingerprint);
-            }
+                return VanillaCraftingAvailabilityNativeExecutionResult.AdjacencyRestoreFailed();
 
-            return VanillaCraftingAvailabilityNativeExecutionResult.Ready(
-                adjacencySnapshot.Fingerprint,
-                adjacencyAfterFingerprint);
+            return VanillaCraftingAvailabilityNativeExecutionResult.Ready();
         }
 
         private static MethodInfo ResolveCollectItemsToCraftWithFrom()
@@ -101,58 +80,6 @@ namespace TerrarianCompendium.Crafting
             return exception;
         }
 
-        private static ulong ComputeAdjacencyFingerprint(Player player)
-        {
-            if (player == null)
-                return AddInt(FnvOffsetBasis, -1);
-
-            ulong hash = FnvOffsetBasis;
-            bool[] adjTile = player.adjTile;
-            int tileCount = adjTile?.Length ?? 0;
-
-            hash = AddInt(hash, tileCount);
-
-            if (adjTile != null)
-            {
-                for (var i = 0; i < adjTile.Length; i++)
-                    hash = AddBool(hash, adjTile[i]);
-            }
-
-            hash = AddBool(hash, player.adjWaterSource);
-            hash = AddBool(hash, player.adjHoney);
-            hash = AddBool(hash, player.adjLava);
-            hash = AddBool(hash, player.oldAdjWaterSource);
-            hash = AddBool(hash, player.oldAdjHoney);
-            hash = AddBool(hash, player.oldAdjLava);
-            hash = AddBool(hash, player.alchemyTable);
-
-            return hash;
-        }
-
-        private static ulong AddBool(ulong hash, bool value)
-        {
-            return AddInt(hash, value ? 1 : 0);
-        }
-
-        private static ulong AddInt(ulong hash, int value)
-        {
-            unchecked
-            {
-                var data = (uint)value;
-
-                hash ^= (byte)data;
-                hash *= FnvPrime;
-                hash ^= (byte)(data >> 8);
-                hash *= FnvPrime;
-                hash ^= (byte)(data >> 16);
-                hash *= FnvPrime;
-                hash ^= (byte)(data >> 24);
-                hash *= FnvPrime;
-            }
-
-            return hash;
-        }
-
         private readonly struct AdjacencySnapshot(Player player)
         {
             private readonly bool[] _adjTile = (bool[])player?.adjTile?.Clone();
@@ -163,8 +90,6 @@ namespace TerrarianCompendium.Crafting
             private readonly bool _oldAdjHoney = player?.oldAdjHoney ?? false;
             private readonly bool _oldAdjLava = player?.oldAdjLava ?? false;
             private readonly bool _alchemyTable = player?.alchemyTable ?? false;
-
-            public ulong Fingerprint { get; } = ComputeAdjacencyFingerprint(player);
 
             public bool Restore(Player player)
             {
@@ -233,81 +158,47 @@ namespace TerrarianCompendium.Crafting
     {
         private VanillaCraftingAvailabilityNativeExecutionResult(
             VanillaCraftingAvailabilityNativeExecutionStatus status,
-            Exception exception,
-            ulong adjacencyBeforeFingerprint,
-            ulong adjacencyAfterFingerprint,
-            bool adjacencyRestored)
+            Exception exception)
         {
             Status = status;
             Exception = exception;
-            AdjacencyBeforeFingerprint = adjacencyBeforeFingerprint;
-            AdjacencyAfterFingerprint = adjacencyAfterFingerprint;
-            AdjacencyRestored = adjacencyRestored;
         }
 
         public VanillaCraftingAvailabilityNativeExecutionStatus Status { get; }
 
         public Exception Exception { get; }
 
-        public ulong AdjacencyBeforeFingerprint { get; }
-
-        public ulong AdjacencyAfterFingerprint { get; }
-
-        public bool AdjacencyRestored { get; }
-
         public bool CollectorAvailable =>
             Status != VanillaCraftingAvailabilityNativeExecutionStatus.CollectorUnavailable;
 
         public bool Succeeded => Status == VanillaCraftingAvailabilityNativeExecutionStatus.Ready;
 
-        public static VanillaCraftingAvailabilityNativeExecutionResult Ready(
-            ulong adjacencyBeforeFingerprint,
-            ulong adjacencyAfterFingerprint)
+        public static VanillaCraftingAvailabilityNativeExecutionResult Ready()
         {
             return new VanillaCraftingAvailabilityNativeExecutionResult(
                 VanillaCraftingAvailabilityNativeExecutionStatus.Ready,
-                null,
-                adjacencyBeforeFingerprint,
-                adjacencyAfterFingerprint,
-                adjacencyRestored: true);
+                null);
         }
 
-        public static VanillaCraftingAvailabilityNativeExecutionResult CollectorUnavailable(
-            ulong adjacencyBeforeFingerprint,
-            ulong adjacencyAfterFingerprint)
+        public static VanillaCraftingAvailabilityNativeExecutionResult CollectorUnavailable()
         {
             return new VanillaCraftingAvailabilityNativeExecutionResult(
                 VanillaCraftingAvailabilityNativeExecutionStatus.CollectorUnavailable,
-                null,
-                adjacencyBeforeFingerprint,
-                adjacencyAfterFingerprint,
-                adjacencyRestored: true);
+                null);
         }
 
-        public static VanillaCraftingAvailabilityNativeExecutionResult Failed(
-            Exception exception,
-            ulong adjacencyBeforeFingerprint,
-            ulong adjacencyAfterFingerprint,
-            bool adjacencyRestored)
+        public static VanillaCraftingAvailabilityNativeExecutionResult Failed(Exception exception)
         {
             return new VanillaCraftingAvailabilityNativeExecutionResult(
                 VanillaCraftingAvailabilityNativeExecutionStatus.Failed,
-                exception ?? throw new ArgumentNullException(nameof(exception)),
-                adjacencyBeforeFingerprint,
-                adjacencyAfterFingerprint,
-                adjacencyRestored);
+                exception ?? throw new ArgumentNullException(nameof(exception)));
         }
 
-        public static VanillaCraftingAvailabilityNativeExecutionResult AdjacencyRestoreFailed(
-            ulong adjacencyBeforeFingerprint,
-            ulong adjacencyAfterFingerprint)
+        public static VanillaCraftingAvailabilityNativeExecutionResult AdjacencyRestoreFailed()
         {
             return new VanillaCraftingAvailabilityNativeExecutionResult(
                 VanillaCraftingAvailabilityNativeExecutionStatus.AdjacencyRestoreFailed,
-                null,
-                adjacencyBeforeFingerprint,
-                adjacencyAfterFingerprint,
-                adjacencyRestored: false);
+                null);
         }
     }
 

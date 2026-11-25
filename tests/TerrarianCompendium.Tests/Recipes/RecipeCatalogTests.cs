@@ -14,11 +14,10 @@ namespace TerrarianCompendium.Tests.Recipes
             RecipeCatalogEntry second = CreateEntry(1, 2);
 
             var catalog = RecipeCatalog.Create(
-                new[]
-                {
-                    first,
-                    second
-                });
+            [
+                first,
+                second
+            ]);
 
             Assert.That(catalog.Count, Is.EqualTo(2));
             Assert.That(catalog.Recipes[0], Is.SameAs(first));
@@ -29,12 +28,11 @@ namespace TerrarianCompendium.Tests.Recipes
         public void Create_WithUnorderedEntries_OrdersByRuntimeIndex()
         {
             var catalog = RecipeCatalog.Create(
-                new[]
-                {
-                    CreateEntry(2, 3),
-                    CreateEntry(0, 1),
-                    CreateEntry(1, 2)
-                });
+            [
+                CreateEntry(2, 3),
+                CreateEntry(0, 1),
+                CreateEntry(1, 2)
+            ]);
 
             Assert.That(catalog.Recipes[0].RuntimeIndex, Is.EqualTo(0));
             Assert.That(catalog.Recipes[1].RuntimeIndex, Is.EqualTo(1));
@@ -45,10 +43,10 @@ namespace TerrarianCompendium.Tests.Recipes
         public void Create_WithDuplicateRuntimeIndex_Throws()
         {
             RecipeCatalogEntry[] entries =
-            {
+            [
                 CreateEntry(0, 1),
                 CreateEntry(0, 2)
-            };
+            ];
 
             Assert.Throws<ArgumentException>((Action)(() => { RecipeCatalog.Create(entries); }));
         }
@@ -57,10 +55,10 @@ namespace TerrarianCompendium.Tests.Recipes
         public void Create_WithNullEntry_Throws()
         {
             RecipeCatalogEntry[] entries =
-            {
+            [
                 CreateEntry(0, 1),
                 null
-            };
+            ];
 
             Assert.Throws<ArgumentException>((Action)(() => { RecipeCatalog.Create(entries); }));
         }
@@ -70,7 +68,7 @@ namespace TerrarianCompendium.Tests.Recipes
         {
             RecipeCatalogEntry first = CreateEntry(0, 1);
             RecipeCatalogEntry second = CreateEntry(1, 2);
-            RecipeCatalogEntry[] entries = { first };
+            RecipeCatalogEntry[] entries = [first];
 
             var catalog = RecipeCatalog.Create(entries);
             entries[0] = second;
@@ -82,11 +80,10 @@ namespace TerrarianCompendium.Tests.Recipes
         public void Contains_ReturnsExpectedResult()
         {
             var catalog = RecipeCatalog.Create(
-                new[]
-                {
-                    CreateEntry(0, 1),
-                    CreateEntry(2, 3)
-                });
+            [
+                CreateEntry(0, 1),
+                CreateEntry(2, 3)
+            ]);
 
             Assert.That(catalog.Contains(0), Is.True);
             Assert.That(catalog.Contains(1), Is.False);
@@ -98,11 +95,10 @@ namespace TerrarianCompendium.Tests.Recipes
             RecipeCatalogEntry expectedEntry = CreateEntry(2, 3);
 
             var catalog = RecipeCatalog.Create(
-                new[]
-                {
-                    CreateEntry(0, 1),
-                    expectedEntry
-                });
+            [
+                CreateEntry(0, 1),
+                expectedEntry
+            ]);
 
             bool found = catalog.TryGet(2, out RecipeCatalogEntry actualEntry);
 
@@ -114,10 +110,9 @@ namespace TerrarianCompendium.Tests.Recipes
         public void TryGet_WithMissingRuntimeIndex_ReturnsFalse()
         {
             var catalog = RecipeCatalog.Create(
-                new[]
-                {
-                    CreateEntry(0, 1)
-                });
+            [
+                CreateEntry(0, 1)
+            ]);
 
             bool found = catalog.TryGet(1, out RecipeCatalogEntry entry);
 
@@ -131,7 +126,7 @@ namespace TerrarianCompendium.Tests.Recipes
                 runtimeIndex,
                 resultItemId,
                 1,
-                Array.Empty<RecipeIngredient>(),
+                [],
                 new RecipeEnvironmentRequirements(null, false, false, false, false, false, false, false),
                 isAlchemy: false);
         }

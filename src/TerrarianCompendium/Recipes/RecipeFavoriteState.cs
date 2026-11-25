@@ -15,7 +15,18 @@ namespace TerrarianCompendium.Recipes
 
         public int FavoriteCount => _favoriteKeys.Count;
 
+        public bool CanEdit { get; private set; } = true;
+
         public long Revision => _revision;
+
+        public void SetEditingAvailable(bool available)
+        {
+            if (CanEdit == available)
+                return;
+
+            CanEdit = available;
+            _revision++;
+        }
 
         public bool IsFavorite(int runtimeIndex)
         {
@@ -25,6 +36,9 @@ namespace TerrarianCompendium.Recipes
 
         public bool Toggle(int runtimeIndex)
         {
+            if (!CanEdit)
+                return IsFavorite(runtimeIndex);
+
             if (!_persistentKeyIndex.TryGetKey(runtimeIndex, out RecipePersistentKey key))
             {
                 throw new ArgumentOutOfRangeException(

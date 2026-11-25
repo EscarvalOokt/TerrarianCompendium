@@ -319,7 +319,10 @@ namespace TerrarianCompendium.UI
             if (_projection.LootRows.Count == 0)
             {
                 DrawTextRow(
-                    _localization.Get(CompendiumTextKeys.NpcDetails.NoDrops),
+                    _localization.Get(
+                        _projection.LootDataAvailable
+                            ? CompendiumTextKeys.NpcDetails.NoDrops
+                            : CompendiumTextKeys.NpcDetails.Unavailable),
                     x,
                     viewY + _lootContentTop,
                     width,

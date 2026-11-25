@@ -1,9 +1,11 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Terraria;
 using Terraria.UI;
 using TerrariaModder.Core.UI;
 using TerrariaModder.Core.UI.Widgets;
+using TerrarianCompendium.Crafting;
 using TerrarianCompendium.Localization;
 using TerrarianCompendium.Navigation;
 
@@ -58,6 +60,7 @@ namespace TerrarianCompendium.UI.Vanilla
         private readonly MessageElement _bestiaryUnavailableState;
 
         private readonly BrowserContentLayout _contentLayout;
+        private readonly CraftingAvailabilityRefreshSchedule _craftingAvailabilityRefresh;
         private readonly BrowserDetailsSurface _detailsSurface;
         private readonly VanillaTextButton _forwardButton;
         private readonly ItemBrowserView _itemBrowserView;
@@ -96,11 +99,13 @@ namespace TerrarianCompendium.UI.Vanilla
             int defaultWidth,
             int defaultHeight,
             int minimumWidth,
-            int minimumHeight)
+            int minimumHeight,
+            Action refreshCraftingAvailability)
         {
             _itemBrowserView = itemBrowserView ?? throw new ArgumentNullException(nameof(itemBrowserView));
             _armorSetBrowserView = armorSetBrowserView;
             _recipeBrowserView = recipeBrowserView;
+            _craftingAvailabilityRefresh = new CraftingAvailabilityRefreshSchedule(refreshCraftingAvailability);
             _shimmerBrowserView = shimmerBrowserView;
             _bestiaryBrowserView = bestiaryBrowserView;
             _anglerBrowserView = anglerBrowserView;
@@ -326,11 +331,13 @@ namespace TerrarianCompendium.UI.Vanilla
         public override void OnActivate()
         {
             _isActive = true;
+            RefreshVisibleCraftingAvailability();
             base.OnActivate();
         }
 
         public override void OnDeactivate()
         {
+            _craftingAvailabilityRefresh.Reset();
             _isActive = false;
             _panel.SetExternalInputBlocked(false);
             base.OnDeactivate();
@@ -338,10 +345,20 @@ namespace TerrarianCompendium.UI.Vanilla
 
         public override void Update(GameTime gameTime)
         {
+            RefreshVisibleCraftingAvailability();
             SynchronizeLocalization();
             SynchronizeSection();
             SynchronizeHistoryButtons();
             base.Update(gameTime);
+        }
+
+        private void RefreshVisibleCraftingAvailability()
+        {
+            _craftingAvailabilityRefresh.Update(
+                Main.GameUpdateCount,
+                _navigationState.CurrentDestination,
+                _itemBrowserView.FiltersByCraftability,
+                _recipeBrowserView?.FiltersByCraftability == true);
         }
 
         private void SynchronizeLocalization(bool force = false)

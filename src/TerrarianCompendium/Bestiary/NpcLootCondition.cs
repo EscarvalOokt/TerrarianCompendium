@@ -15,6 +15,8 @@ namespace TerrarianCompendium.Bestiary
                 throw new ArgumentNullException(nameof(condition));
 
             _descriptionProvider = condition.GetConditionDescription;
+            // Vanilla qualifiers depend on localization and fixed rule parameters. Other rules may read live state.
+            DescriptionMayChange = condition.GetType().Assembly != typeof(Conditions).Assembly;
 
             switch (condition)
             {
@@ -56,12 +58,23 @@ namespace TerrarianCompendium.Bestiary
         internal NpcLootCondition(
             Func<NpcDifficultyMode, bool> difficultyMatcher,
             string description = null,
+            bool showAsQualifier = true) : this(difficultyMatcher, () => description, showAsQualifier)
+        {
+            DescriptionMayChange = false;
+        }
+
+        internal NpcLootCondition(
+            Func<NpcDifficultyMode, bool> difficultyMatcher,
+            Func<string> descriptionProvider,
             bool showAsQualifier = true)
         {
             _difficultyMatcher = difficultyMatcher ?? throw new ArgumentNullException(nameof(difficultyMatcher));
-            _descriptionProvider = () => description;
+            _descriptionProvider = descriptionProvider ?? throw new ArgumentNullException(nameof(descriptionProvider));
             _showAsQualifier = showAsQualifier;
+            DescriptionMayChange = true;
         }
+
+        public bool DescriptionMayChange { get; }
 
         public bool AppliesToDifficulty(NpcDifficultyMode difficulty)
         {

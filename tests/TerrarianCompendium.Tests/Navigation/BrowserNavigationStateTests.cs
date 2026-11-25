@@ -8,6 +8,30 @@ namespace TerrarianCompendium.Tests.Navigation
     public sealed class BrowserNavigationStateTests
     {
         [Test]
+        public void CraftingAvailability_IsRequestedOnlyByVisibleConsumers()
+        {
+            var items = BrowserDestination.ForSection(BrowserSection.Items);
+            var recipes = BrowserDestination.ForSection(BrowserSection.Recipes);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(items.NeedsCraftingAvailability(false, true), Is.False);
+                Assert.That(items.NeedsCraftingAvailability(true, false), Is.True);
+                Assert.That(recipes.NeedsCraftingAvailability(true, false), Is.False);
+                Assert.That(recipes.NeedsCraftingAvailability(false, true), Is.True);
+                Assert.That(BrowserDestination.ForItem(1).NeedsCraftingAvailability(false, false), Is.True);
+                Assert.That(BrowserDestination.ForRecipe(0).NeedsCraftingAvailability(false, false), Is.True);
+                Assert.That(BrowserDestination.ForRecipeQuery(1).NeedsCraftingAvailability(false, false), Is.True);
+                Assert.That(BrowserDestination.ForNpc(1).NeedsCraftingAvailability(true, true), Is.False);
+                Assert.That(BrowserDestination.ForArmorSet(1).NeedsCraftingAvailability(true, true), Is.False);
+                Assert.That(BrowserDestination.ForShimmerQuery(1).NeedsCraftingAvailability(true, true), Is.False);
+                Assert.That(
+                    BrowserDestination.ForSection(BrowserSection.Angler).NeedsCraftingAvailability(true, true),
+                    Is.False);
+            });
+        }
+
+        [Test]
         public void NewState_StartsAtItemsRootWithZeroRevision()
         {
             var state = new BrowserNavigationState();

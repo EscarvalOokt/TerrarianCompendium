@@ -315,7 +315,7 @@ namespace TerrarianCompendium.Bestiary
             if (catalogEntry == null)
                 throw new ArgumentNullException(nameof(catalogEntry));
 
-            NPC npc = CreateNpcSnapshot(catalogEntry.NetId, NpcDifficultyMode.Classic);
+            NPC npc = ContentSamples.NpcsByNetId[catalogEntry.NetId];
             return GetBannerItemId(npc, out _);
         }
 
@@ -325,7 +325,7 @@ namespace TerrarianCompendium.Bestiary
                 throw new ArgumentNullException(nameof(catalogEntry));
 
             BestiaryEntry entry = GetBestiaryEntry(catalogEntry);
-            NPC npc = CreateNpcSnapshot(catalogEntry.NetId, NpcDifficultyMode.Classic);
+            NPC npc = ContentSamples.NpcsByNetId[catalogEntry.NetId];
             bool hasKillCounter = FindSingleInfoElement<NPCKillCounterInfoElement>(entry) != null;
             var slainCount = 0;
 

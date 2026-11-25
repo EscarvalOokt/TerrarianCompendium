@@ -28,7 +28,7 @@ namespace TerrarianCompendium
     {
         public const string ModId = "terrarian-compendium";
         public const string ModName = "Terrarian Compendium";
-        public const string ModVersion = "1.4.1";
+        public const string ModVersion = "1.5.0";
 
         private AnglerRewardCatalog _anglerRewardCatalog;
         private ArmorSetCatalog _armorSetCatalog;
@@ -36,7 +36,7 @@ namespace TerrarianCompendium
         private BrowserSession _browserSession;
         private BrowserShell _browserShell;
         private CharacterProgressPathResolver _characterProgressPathResolver;
-        private ChecklistProgressStore _checklistProgressStore;
+        private ChecklistProgressPersistence _checklistPersistence;
         private TerrarianCompendiumConfig _config;
         private string _failedItemTextCultureName;
         private FishingSourceIndex _fishingSourceIndex;
@@ -44,20 +44,15 @@ namespace TerrarianCompendium
         private bool _isDedicatedServer;
         private ItemCatalog _itemCatalog;
         private ItemTextIndex _itemTextIndex;
-        private long _lastRecipeFavoritesSaveAttemptRevision = -1;
         private CompendiumLocalization _localization;
         private ILogger _logger;
         private MerchantSourceIndex _merchantSourceIndex;
         private NpcCatalog _npcCatalog;
         private NpcLootIndex _npcLootIndex;
         private OpenableItemLootIndex _openableItemLootIndex;
-        private long _persistedRecipeFavoritesRevision;
         private RecipeCatalog _recipeCatalog;
-        private string _recipeFavoritesPath;
         private RecipeFavoritesPathResolver _recipeFavoritesPathResolver;
-        private bool _recipeFavoritesPersistenceRewriteRequired;
-        private bool _recipeFavoritesPersistenceWriteEnabled;
-        private bool _recipeFavoritesPreserveBackupOnNextSave;
+        private RecipeFavoritesPersistence _recipeFavoritesPersistence;
         private RecipeFavoritesStore _recipeFavoritesStore;
         private RecipeFavoriteState _recipeFavoriteState;
         private RecipeIndex _recipeIndex;
@@ -79,7 +74,7 @@ namespace TerrarianCompendium
             {
                 _config = context.GetConfig<TerrarianCompendiumConfig>();
                 _characterProgressPathResolver = new CharacterProgressPathResolver();
-                _checklistProgressStore = new ChecklistProgressStore(context.Logger);
+                _checklistPersistence = new ChecklistProgressPersistence(new ChecklistProgressStore(context.Logger));
                 _recipeFavoritesPathResolver = new RecipeFavoritesPathResolver();
                 _recipeFavoritesStore = new RecipeFavoritesStore(context.Logger);
 
@@ -100,22 +95,19 @@ namespace TerrarianCompendium
 
         public void Unload()
         {
-            SaveRecipeFavoritesIfNeeded(forceRetry: true);
+            _recipeFavoritesPersistence?.Update(DateTime.UtcNow, forceRetry: true);
             DestroyBrowserShell();
             DestroyBrowserSession();
+            _checklistPersistence?.Update(DateTime.UtcNow, force: true);
             DeferredTextureLoader.Clear();
 
             Main.OnTickForThirdPartySoftwareOnly -= OnThirdPartySoftwareTick;
             FrameEvents.OnPreUpdate -= OnPreUpdate;
             FrameEvents.OnPostUpdate -= OnPostUpdate;
 
-            _anglerRewardCatalog = null;
-            _armorSetCatalog = null;
-            _armorSetIndex = null;
+            ClearWorldItemData();
             _fishingSourceIndex = null;
             _merchantSourceIndex = null;
-            _itemCatalog = null;
-            _itemTextIndex = null;
             _localization = null;
             _npcCatalog = null;
             _npcLootIndex = null;
@@ -123,20 +115,12 @@ namespace TerrarianCompendium
             _recipeCatalog = null;
             _recipeIndex = null;
             _recipePersistentKeyIndex = null;
-            _shimmerTransformationCatalog = null;
-            _shimmerTransformationIndex = null;
             _worldLootSourceIndex = null;
             _recipeFavoriteState = null;
-            _recipeFavoritesPath = null;
-            _recipeFavoritesPreserveBackupOnNextSave = false;
-            _recipeFavoritesPersistenceRewriteRequired = false;
-            _recipeFavoritesPersistenceWriteEnabled = false;
-            _lastRecipeFavoritesSaveAttemptRevision = -1;
-            _persistedRecipeFavoritesRevision = 0;
+            _recipeFavoritesPersistence = null;
             _recipeFavoritesStore = null;
             _recipeFavoritesPathResolver = null;
-            _failedItemTextCultureName = null;
-            _checklistProgressStore = null;
+            _checklistPersistence = null;
             _characterProgressPathResolver = null;
             _config = null;
             _logger = null;
@@ -148,6 +132,7 @@ namespace TerrarianCompendium
 
         public void OnWorldLoad()
         {
+            ClearWorldItemData();
             VanillaBestiaryNativeBridge.ClearMetadataCache();
 
             if (_fishingSourceIndex == null)
@@ -174,23 +159,20 @@ namespace TerrarianCompendium
                 }
             }
 
-            if (_itemCatalog == null)
+            try
             {
-                try
-                {
-                    Func<int, bool> fishingItemPredicate = _fishingSourceIndex == null
-                        ? null
-                        : _fishingSourceIndex.ContainsItem;
-                    var catalogBuilder = new VanillaItemCatalogBuilder(_logger, fishingItemPredicate);
-                    _itemCatalog = catalogBuilder.Build();
-                }
-                catch (Exception exception)
-                {
-                    _logger?.Error($"[{ModName}] Failed to build vanilla item catalog.", exception);
-                }
+                Func<int, bool> fishingItemPredicate = _fishingSourceIndex == null
+                    ? null
+                    : _fishingSourceIndex.ContainsItem;
+                var catalogBuilder = new VanillaItemCatalogBuilder(_logger, fishingItemPredicate);
+                _itemCatalog = catalogBuilder.Build();
+            }
+            catch (Exception exception)
+            {
+                _logger?.Error($"[{ModName}] Failed to build vanilla item catalog.", exception);
             }
 
-            if (_anglerRewardCatalog == null && _itemCatalog != null)
+            if (_itemCatalog != null)
             {
                 try
                 {
@@ -199,7 +181,6 @@ namespace TerrarianCompendium
                 catch (Exception exception)
                 {
                     _logger?.Error($"[{ModName}] Failed to build vanilla Angler reward catalog.", exception);
-                    _anglerRewardCatalog = null;
                 }
             }
 
@@ -227,7 +208,7 @@ namespace TerrarianCompendium
                 }
             }
 
-            if (_armorSetCatalog == null && _itemCatalog != null)
+            if (_itemCatalog != null)
             {
                 try
                 {
@@ -282,7 +263,7 @@ namespace TerrarianCompendium
                 }
             }
 
-            if (_shimmerTransformationCatalog == null && _itemCatalog != null && _recipeCatalog != null)
+            if (_itemCatalog != null && _recipeCatalog != null)
             {
                 try
                 {
@@ -292,14 +273,10 @@ namespace TerrarianCompendium
                 catch (Exception exception)
                 {
                     _logger?.Error($"[{ModName}] Failed to build vanilla Shimmer transformation catalog.", exception);
-                    _shimmerTransformationCatalog = null;
                 }
             }
 
-            if (_shimmerTransformationIndex == null &&
-                _shimmerTransformationCatalog != null &&
-                _itemCatalog != null &&
-                _recipeCatalog != null)
+            if (_shimmerTransformationCatalog != null)
             {
                 try
                 {
@@ -312,7 +289,6 @@ namespace TerrarianCompendium
                 catch (Exception exception)
                 {
                     _logger?.Error($"[{ModName}] Failed to build vanilla Shimmer transformation index.", exception);
-                    _shimmerTransformationIndex = null;
                 }
             }
 
@@ -345,7 +321,6 @@ namespace TerrarianCompendium
             if (_isDedicatedServer || _itemCatalog == null)
                 return;
 
-            _failedItemTextCultureName = null;
             EnsureLocalizationCurrent();
             EnsureItemTextIndexCurrent();
 
@@ -362,7 +337,7 @@ namespace TerrarianCompendium
                 _itemCatalog,
                 _anglerRewardCatalog,
                 _recipeCatalog,
-                _checklistProgressStore,
+                _checklistPersistence,
                 _characterProgressPathResolver,
                 _logger,
                 player,
@@ -605,7 +580,7 @@ namespace TerrarianCompendium
                 _localization);
             NpcDetailsView npcDetailsView = null;
 
-            if (_npcCatalog != null && _npcLootIndex != null && bestiaryFilterCatalog != null)
+            if (_npcCatalog != null && bestiaryFilterCatalog != null)
             {
                 try
                 {
@@ -645,7 +620,8 @@ namespace TerrarianCompendium
                 shimmerDetailsView,
                 npcDetailsView,
                 navigationState,
-                _localization);
+                _localization,
+                RefreshCraftingAvailability);
 
             try
             {
@@ -667,10 +643,30 @@ namespace TerrarianCompendium
 
         public void OnWorldUnload()
         {
-            SaveRecipeFavoritesIfNeeded(forceRetry: true);
+            _recipeFavoritesPersistence?.Update(DateTime.UtcNow, forceRetry: true);
             DestroyBrowserShell();
             DestroyBrowserSession();
+            ClearWorldItemData();
             DeferredTextureLoader.Clear();
+        }
+
+        private void ClearWorldItemData()
+        {
+            // Item.SetDefaults selects variants for the active world's seeds.
+            _itemCatalog = null;
+            _itemTextIndex = null;
+            _failedItemTextCultureName = null;
+            _anglerRewardCatalog = null;
+            _armorSetCatalog = null;
+            _armorSetIndex = null;
+            _shimmerTransformationCatalog = null;
+            _shimmerTransformationIndex = null;
+        }
+
+        private void RefreshCraftingAvailability()
+        {
+            if (TryGetLocalPlayer(out Player player))
+                _browserSession?.RefreshCraftingAvailability(player);
         }
 
         public void OnConfigChanged()
@@ -706,7 +702,8 @@ namespace TerrarianCompendium
             if (!Main.ingameOptionsWindow)
                 _browserShell?.Update();
 
-            SaveRecipeFavoritesIfNeeded();
+            _recipeFavoritesPersistence?.Update(DateTime.UtcNow);
+            _checklistPersistence?.Update(DateTime.UtcNow);
 
             if (_browserSession == null)
                 return;
@@ -729,73 +726,16 @@ namespace TerrarianCompendium
                 return;
 
             _recipeFavoriteState ??= new RecipeFavoriteState(_recipePersistentKeyIndex);
-
-            if (!string.IsNullOrWhiteSpace(_recipeFavoritesPath) ||
-                _recipeFavoritesPathResolver == null ||
-                _recipeFavoritesStore == null)
-            {
-                return;
-            }
-
-            if (!_recipeFavoritesPathResolver.TryResolveCurrentPath(out string favoritesPath))
-            {
-                _logger?.Warn(
-                    $"[{ModName}] Recipe favorites persistence is unavailable because the Terraria save path " +
-                    "could not be resolved.");
-
-                return;
-            }
-
-            _recipeFavoritesPath = favoritesPath;
-            RecipeFavoritesLoadResult loadResult = _recipeFavoritesStore.Load(favoritesPath);
-            _recipeFavoritesPersistenceWriteEnabled =
-                loadResult.Status != RecipeFavoritesLoadStatus.UnsupportedVersion &&
-                loadResult.Status != RecipeFavoritesLoadStatus.Failed;
-
-            _recipeFavoriteState.ReplacePersistentKeySnapshot(loadResult.FavoriteRecipeKeys);
-            _persistedRecipeFavoritesRevision = _recipeFavoriteState.Revision;
-            _lastRecipeFavoritesSaveAttemptRevision = -1;
-            _recipeFavoritesPreserveBackupOnNextSave =
-                loadResult.Status == RecipeFavoritesLoadStatus.RecoveredFromBackup;
-            _recipeFavoritesPersistenceRewriteRequired = loadResult.RequiresRewrite;
-
-            if (_recipeFavoritesPersistenceRewriteRequired)
-                SaveRecipeFavoritesIfNeeded();
+            _recipeFavoritesPersistence ??= new RecipeFavoritesPersistence(
+                _recipeFavoritesStore,
+                _recipeFavoriteState,
+                ResolveRecipeFavoritesPath);
+            _recipeFavoritesPersistence.Update(DateTime.UtcNow, forceRetry: true);
         }
 
-        private void SaveRecipeFavoritesIfNeeded(bool forceRetry = false)
+        private string ResolveRecipeFavoritesPath()
         {
-            if (_recipeFavoriteState == null ||
-                _recipeFavoritesStore == null ||
-                !_recipeFavoritesPersistenceWriteEnabled ||
-                string.IsNullOrWhiteSpace(_recipeFavoritesPath))
-            {
-                return;
-            }
-
-            long currentRevision = _recipeFavoriteState.Revision;
-
-            if (!_recipeFavoritesPersistenceRewriteRequired && currentRevision == _persistedRecipeFavoritesRevision)
-            {
-                return;
-            }
-
-            if (!forceRetry && currentRevision == _lastRecipeFavoritesSaveAttemptRevision)
-                return;
-
-            _lastRecipeFavoritesSaveAttemptRevision = currentRevision;
-
-            if (!_recipeFavoritesStore.Save(
-                    _recipeFavoritesPath,
-                    _recipeFavoriteState.CreatePersistentKeySnapshot(),
-                    _recipeFavoritesPreserveBackupOnNextSave))
-            {
-                return;
-            }
-
-            _persistedRecipeFavoritesRevision = currentRevision;
-            _recipeFavoritesPreserveBackupOnNextSave = false;
-            _recipeFavoritesPersistenceRewriteRequired = false;
+            return _recipeFavoritesPathResolver.TryResolveCurrentPath(out string path) ? path : null;
         }
 
         private void EnsureLocalizationCurrent()

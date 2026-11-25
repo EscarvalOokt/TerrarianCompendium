@@ -158,6 +158,8 @@ namespace TerrarianCompendium.UI
 
         public bool IsWritingText => _searchInput.IsWritingText;
 
+        public bool FiltersByCraftability => _filterState.CraftableNowOnly;
+
         public bool HasOpenTransientSurface => _filterPopover.IsOpen;
 
         public VanillaPopover OpenTransientPopover => _filterPopover.IsOpen ? _filterPopover : null;

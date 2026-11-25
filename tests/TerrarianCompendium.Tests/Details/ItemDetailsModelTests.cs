@@ -564,7 +564,7 @@ namespace TerrarianCompendium.Tests.Details
         }
 
         [Test]
-        public void Constructor_WithMerchantBackendButNoNpcCatalog_Throws()
+        public void TryGetProjection_WithMerchantBackendButNoNpcCatalog_PreservesItemDetails()
         {
             ItemCatalog catalog = CreateCatalog(new ItemCatalogEntry(1, "Item"));
             var merchantIndex = new MerchantSourceIndex(
@@ -572,14 +572,30 @@ namespace TerrarianCompendium.Tests.Details
                 new MerchantSourceRelation(10, 1, new MerchantSourceVariant(1, []))
             ]);
 
-            Assert.Throws<ArgumentException>(() =>
-            {
-                _ = new ItemDetailsModel(
-                    catalog,
-                    new ChecklistState(catalog),
-                    new ItemTextIndex(catalog),
-                    merchantSourceIndex: merchantIndex);
-            });
+            var model = new ItemDetailsModel(
+                catalog,
+                new ChecklistState(catalog),
+                new ItemTextIndex(catalog),
+                merchantSourceIndex: merchantIndex);
+
+            Assert.That(model.TryGetProjection(1, out ItemDetailsProjection projection), Is.True);
+            Assert.That(projection.MerchantSourceDataAvailable, Is.False);
+            Assert.That(projection.PurchasableFromMerchants, Is.Empty);
+        }
+
+        [Test]
+        public void TryGetProjection_WithNpcCatalogButNoRelations_PreservesItemDetails()
+        {
+            ItemCatalog catalog = CreateCatalog(new ItemCatalogEntry(1, "Item"));
+            var model = new ItemDetailsModel(
+                catalog,
+                new ChecklistState(catalog),
+                new ItemTextIndex(catalog),
+                npcCatalog: NpcCatalog.Create([new NpcCatalogEntry(10, 0)]));
+
+            Assert.That(model.TryGetProjection(1, out ItemDetailsProjection projection), Is.True);
+            Assert.That(projection.NpcLootDataAvailable, Is.False);
+            Assert.That(projection.MerchantSourceDataAvailable, Is.False);
         }
 
         [Test]

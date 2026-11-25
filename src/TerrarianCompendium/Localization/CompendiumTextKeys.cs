@@ -304,6 +304,7 @@ namespace TerrarianCompendium.Localization
             public const string Ingredients = "Recipes.Details.Ingredients";
             public const string Requirements = "Recipes.Details.Requirements";
             public const string AddFavorite = "Recipes.Details.AddFavorite";
+            public const string FavoritesUnavailable = "Recipes.Details.FavoritesUnavailable";
             public const string RemoveFavorite = "Recipes.Details.RemoveFavorite";
             public const string Makes = "Recipes.Details.Makes";
             public const string CraftableNowValue = "Recipes.Details.CraftableNowValue";
@@ -472,6 +473,11 @@ namespace TerrarianCompendium.Localization
 
         public static class Acquisition
         {
+            public const string LivingWoodChests = "Acquisition.World.living-wood-chests";
+            public const string IceChests = "Acquisition.World.ice-chests";
+            public const string SandstoneChests = "Acquisition.World.sandstone-chests";
+            public const string ShadowChests = "Acquisition.World.shadow-chests";
+            public const string ErrorWorldChests = "Acquisition.World.error-world-chests";
             public const string WorldGeneratedChests = "Acquisition.World.generated-chests";
             public const string JungleShrineChests = "Acquisition.World.jungle-shrine-chests";
             public const string WaterChests = "Acquisition.World.water-chests";

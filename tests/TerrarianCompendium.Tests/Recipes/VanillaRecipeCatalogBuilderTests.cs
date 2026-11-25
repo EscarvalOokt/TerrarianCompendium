@@ -14,14 +14,14 @@ namespace TerrarianCompendium.Tests.Recipes
 
             Assert.That(requirement.Kind, Is.EqualTo(RecipeIngredientRequirementKind.Item));
             Assert.That(requirement.IdentityId, Is.EqualTo(23));
-            Assert.That(requirement.ValidItemIds, Is.EqualTo(new[] { 23 }));
+            Assert.That(requirement.ValidItemIds, Is.EqualTo([23]));
         }
 
         [Test]
         public void CreateRecipeGroupRequirement_RemovesFakeOffsetAndPreservesMembers()
         {
             const int fakeItemIdOffset = 1_000_000;
-            int[] validItemIds = { 619, 9, 27 };
+            int[] validItemIds = [619, 9, 27];
 
             RecipeIngredientRequirement requirement = VanillaRecipeCatalogBuilder.CreateRecipeGroupRequirement(
                 fakeItemIdOffset + 25,
@@ -32,7 +32,7 @@ namespace TerrarianCompendium.Tests.Recipes
 
             Assert.That(requirement.Kind, Is.EqualTo(RecipeIngredientRequirementKind.RecipeGroup));
             Assert.That(requirement.IdentityId, Is.EqualTo(25));
-            Assert.That(requirement.ValidItemIds, Is.EqualTo(new[] { 9, 27, 619 }));
+            Assert.That(requirement.ValidItemIds, Is.EqualTo([9, 27, 619]));
         }
 
         [Test]
@@ -107,7 +107,7 @@ namespace TerrarianCompendium.Tests.Recipes
                 12,
                 8,
                 3,
-                new[] { ingredient },
+                [ingredient],
                 18,
                 requiresWater: true,
                 requiresHoney: false,
@@ -121,7 +121,7 @@ namespace TerrarianCompendium.Tests.Recipes
             Assert.That(entry.RuntimeIndex, Is.EqualTo(12));
             Assert.That(entry.ResultItemId, Is.EqualTo(8));
             Assert.That(entry.ResultStack, Is.EqualTo(3));
-            Assert.That(entry.Ingredients, Is.EqualTo(new[] { ingredient }));
+            Assert.That(entry.Ingredients, Is.EqualTo([ingredient]));
             Assert.That(entry.EnvironmentRequirements.RequiredTileId, Is.EqualTo(18));
             Assert.That(entry.EnvironmentRequirements.RequiresWater, Is.True);
             Assert.That(entry.EnvironmentRequirements.RequiresSnowBiome, Is.True);

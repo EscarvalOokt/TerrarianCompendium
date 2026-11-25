@@ -187,7 +187,8 @@ namespace TerrarianCompendium.Details
             IEnumerable<NpcDetailsMerchantStockEntry> merchantStock = null,
             NpcBestiaryKillStatisticsSnapshot killStatistics = null,
             NpcDetailsItemReference bannerItem = null,
-            int bannerProgress = 0)
+            int bannerProgress = 0,
+            bool lootDataAvailable = true)
         {
             if (metadata == null)
                 throw new ArgumentNullException(nameof(metadata));
@@ -259,6 +260,7 @@ namespace TerrarianCompendium.Details
             BannerItem = bannerItem;
             BannerProgress = bannerItem != null ? bannerProgress : 0;
             BannerProgressTarget = killStatistics?.KillsPerBanner ?? 0;
+            LootDataAvailable = lootDataAvailable;
             LootRows = new ReadOnlyCollection<NpcDetailsLootRow>(copiedLootRows);
             MerchantSourceDataAvailable = merchantSourceDataAvailable;
             MerchantStock = new ReadOnlyCollection<NpcDetailsMerchantStockEntry>(copiedMerchantStock);
@@ -293,6 +295,8 @@ namespace TerrarianCompendium.Details
         public int BannerProgressTarget { get; }
 
         public bool HasKillStatistics => HasKillCounter || BannerItem != null;
+
+        public bool LootDataAvailable { get; }
 
         public IReadOnlyList<NpcDetailsLootRow> LootRows { get; }
 

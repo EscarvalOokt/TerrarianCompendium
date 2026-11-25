@@ -63,8 +63,8 @@ You can rebind **Toggle Terrarian Compendium** in TerrariaModder's **F6** menu. 
 
 ## Requirements
 
-- **Terraria 1.4.5.8** for Windows.
-- [TerrariaModder Core](https://www.nexusmods.com/terraria/mods/135) **0.4.2** (1.4.0 development target).
+- **Terraria 1.4.6.1** for Windows.
+- [TerrariaModder Core](https://www.nexusmods.com/terraria/mods/135) **0.4.3**.
 - **.NET Framework 4.8**.
 
 ## Installation
@@ -114,7 +114,7 @@ The source project targets .NET Framework 4.8 and includes a separate NUnit test
   TerrariaWindowKit/
 ```
 
-For this 1.4.0 development source, use the [TerrariaWindowKit v1.1.0 tag](https://github.com/EscarvalOokt/TerrariaWindowKit/releases/tag/v1.1.0) in the sibling checkout. The project imports the sources currently present in that directory; it does not pin the checkout to a tag or commit. Build with a compiler supporting C# 12 or later (for example, .NET SDK 8).
+For version 1.5.0, use the [TerrariaWindowKit v1.1.0 tag](https://github.com/EscarvalOokt/TerrariaWindowKit/releases/tag/v1.1.0) in the sibling checkout. The project imports the sources currently present in that directory; it does not pin the checkout to a tag or commit. Build with a compiler supporting C# 12 or later (for example, .NET SDK 8).
 
 Copy the [local properties example](docs/TerrarianCompendium.Local.props.example) to `src/TerrarianCompendium.Local.props` and configure the Terraria installation, XNA and ReLogic references described in that example. From the Compendium repository root, build and run tests with:
 

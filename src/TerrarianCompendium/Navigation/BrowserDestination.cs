@@ -67,6 +67,15 @@ namespace TerrarianCompendium.Navigation
 
         public bool HasRecipeQuery => IsRecipeQuery || (IsRecipe && RecipeQueryItemId > 0);
 
+        public bool NeedsCraftingAvailability(bool itemsFilteredByCraftability, bool recipesFilteredByCraftability)
+        {
+            return IsItem ||
+                   IsRecipeQuery ||
+                   IsRecipe ||
+                   (Section == BrowserSection.Items && itemsFilteredByCraftability) ||
+                   (Section == BrowserSection.Recipes && recipesFilteredByCraftability);
+        }
+
         public static BrowserDestination ForSection(BrowserSection section)
         {
             ValidateSection(section);

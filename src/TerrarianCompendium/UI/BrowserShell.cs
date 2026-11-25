@@ -29,7 +29,8 @@ namespace TerrarianCompendium.UI
             ShimmerDetailsView shimmerDetailsView,
             NpcDetailsView npcDetailsView,
             BrowserNavigationState navigationState,
-            CompendiumLocalization localization)
+            CompendiumLocalization localization,
+            Action refreshCraftingAvailability)
         {
             if (itemBrowserView == null)
                 throw new ArgumentNullException(nameof(itemBrowserView));
@@ -62,7 +63,8 @@ namespace TerrarianCompendium.UI
                     DefaultPanelWidth,
                     DefaultPanelHeight,
                     MinimumPanelWidth,
-                    MinimumPanelHeight),
+                    MinimumPanelHeight,
+                    refreshCraftingAvailability),
                 MinimumPanelWidth,
                 MinimumPanelHeight);
         }

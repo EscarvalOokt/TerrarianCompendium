@@ -337,24 +337,76 @@ namespace TerrarianCompendium.Tests.Persistence
             return Path.Combine(_testDirectory, "recipe-favorites.json");
         }
 
-        private static RecipePersistentKey CreateKey(int resultItemId)
+        [Test]
+        public void LockedPrimary_DisablesEditingAndRestoresLatestFavoritesOnRetry()
         {
-            return RecipePersistentKey.Create(
-                new RecipeCatalogEntry(
-                    runtimeIndex: resultItemId,
-                    resultItemId: resultItemId,
-                    resultStack: 1,
-                    ingredients: [],
-                    environmentRequirements: new RecipeEnvironmentRequirements(
-                        null,
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        false),
-                    isAlchemy: false));
+            string path = CreateFavoritesPath();
+            var store = new RecipeFavoritesStore(null);
+            RecipePersistentKey first = CreateKey(100);
+            RecipePersistentKey second = CreateKey(200);
+            store.Save(path, [first]);
+            store.Save(path, [first, second]);
+            var catalog = RecipeCatalog.Create([CreateEntry(100), CreateEntry(200), CreateEntry(300)]);
+            var state = new RecipeFavoriteState(RecipePersistentKeyIndex.Create(catalog));
+            var persistence = new RecipeFavoritesPersistence(store, state, () => path);
+            DateTime now = DateTime.UtcNow;
+
+            using (File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                Assert.That(store.Load(path).Status, Is.EqualTo(RecipeFavoritesLoadStatus.Failed));
+                persistence.Update(now);
+                Assert.That(state.CanEdit, Is.False);
+                state.Toggle(300);
+                Assert.That(state.IsFavorite(300), Is.False);
+            }
+
+            persistence.Update(now.AddMinutes(1));
+            Assert.That(state.CanEdit, Is.True);
+            Assert.That(state.IsFavorite(100), Is.True);
+            Assert.That(state.IsFavorite(200), Is.True);
+            Assert.That(store.Load(path + ".bak").FavoriteRecipeKeys, Is.EqualTo([first]));
+            state.Toggle(100);
+            persistence.Update(now.AddMinutes(1));
+            Assert.That(store.Load(path).FavoriteRecipeKeys, Is.EqualTo([second]));
+        }
+
+        [Test]
+        public void UnsupportedFavoriteSchema_LeavesEditingDisabledAndFileIntact()
+        {
+            string path = CreateFavoritesPath();
+            const string future = "{\"version\":3,\"favoriteRecipeKeys\":[]}";
+            File.WriteAllText(path, future);
+            var catalog = RecipeCatalog.Create([CreateEntry(100)]);
+            var state = new RecipeFavoriteState(RecipePersistentKeyIndex.Create(catalog));
+            var persistence = new RecipeFavoritesPersistence(new RecipeFavoritesStore(null), state, () => path);
+            persistence.Update(DateTime.UtcNow);
+            state.Toggle(100);
+            persistence.Update(DateTime.UtcNow.AddMinutes(1), forceRetry: true);
+            Assert.That(state.CanEdit, Is.False);
+            Assert.That(state.IsFavorite(100), Is.False);
+            Assert.That(File.ReadAllText(path), Is.EqualTo(future));
+        }
+
+        private static RecipePersistentKey CreateKey(int resultItemId) =>
+            RecipePersistentKey.Create(CreateEntry(resultItemId));
+
+        private static RecipeCatalogEntry CreateEntry(int resultItemId)
+        {
+            return new RecipeCatalogEntry(
+                runtimeIndex: resultItemId,
+                resultItemId: resultItemId,
+                resultStack: 1,
+                ingredients: [],
+                environmentRequirements: new RecipeEnvironmentRequirements(
+                    null,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false),
+                isAlchemy: false);
         }
 
         private static string[] GetValues(IReadOnlyList<RecipePersistentKey> keys)

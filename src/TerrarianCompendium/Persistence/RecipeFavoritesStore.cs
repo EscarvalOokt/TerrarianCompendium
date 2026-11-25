@@ -43,11 +43,6 @@ namespace TerrarianCompendium.Persistence
         {
             ValidatePath(path);
 
-            string backupPath = GetBackupPath(path);
-
-            if (!File.Exists(path))
-                return LoadWithoutPrimaryFile(backupPath);
-
             FileReadResult primaryResult = ReadFile(path);
 
             if (primaryResult.Status == FileReadStatus.Success)
@@ -65,38 +60,39 @@ namespace TerrarianCompendium.Persistence
                 return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.UnsupportedVersion, requiresRewrite: false);
             }
 
-            LogReadFailure(path, primaryResult);
-
-            if (File.Exists(backupPath))
+            if (primaryResult.Status == FileReadStatus.Failed)
             {
-                FileReadResult backupResult = ReadFile(backupPath);
+                LogReadFailure(path, primaryResult);
+                return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Failed, requiresRewrite: false);
+            }
 
-                if (backupResult.Status == FileReadStatus.Success)
-                {
-                    _logger?.Info($"Recipe favorites recovered from backup '{backupPath}'.");
+            if (primaryResult.Status == FileReadStatus.Corrupt)
+                LogReadFailure(path, primaryResult);
 
+            string backupPath = GetBackupPath(path);
+            FileReadResult backupResult = ReadFile(backupPath);
+            switch (backupResult.Status)
+            {
+                case FileReadStatus.Success:
+                    _logger?.Info($"Recovered recipe favorites from backup '{backupPath}'.");
                     return new RecipeFavoritesLoadResult(
                         RecipeFavoritesLoadStatus.RecoveredFromBackup,
                         backupResult.FavoriteRecipeKeys,
                         requiresRewrite: true);
-                }
-
-                if (backupResult.Status == FileReadStatus.UnsupportedVersion)
-                {
+                case FileReadStatus.UnsupportedVersion:
                     LogUnsupportedVersion(backupPath, backupResult.Version);
-
                     return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.UnsupportedVersion, requiresRewrite: false);
-                }
-
-                LogReadFailure(backupPath, backupResult);
-
-                if (backupResult.Status == FileReadStatus.Failed)
+                case FileReadStatus.Failed:
+                    LogReadFailure(backupPath, backupResult);
                     return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Failed, requiresRewrite: false);
+                case FileReadStatus.Corrupt:
+                    LogReadFailure(backupPath, backupResult);
+                    return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Corrupt, requiresRewrite: true);
+                default:
+                    return primaryResult.Status == FileReadStatus.Missing
+                        ? CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Missing, requiresRewrite: false)
+                        : CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Corrupt, requiresRewrite: true);
             }
-
-            return primaryResult.Status == FileReadStatus.Corrupt
-                ? CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Corrupt, requiresRewrite: true)
-                : CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Failed, requiresRewrite: false);
         }
 
         public bool Save(
@@ -153,38 +149,6 @@ namespace TerrarianCompendium.Persistence
             }
         }
 
-        private RecipeFavoritesLoadResult LoadWithoutPrimaryFile(string backupPath)
-        {
-            if (!File.Exists(backupPath))
-                return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Missing, requiresRewrite: false);
-
-            FileReadResult backupResult = ReadFile(backupPath);
-
-            if (backupResult.Status == FileReadStatus.Success)
-            {
-                _logger?.Info(
-                    $"Recipe favorites recovered from backup '{backupPath}' because the primary file is missing.");
-
-                return new RecipeFavoritesLoadResult(
-                    RecipeFavoritesLoadStatus.RecoveredFromBackup,
-                    backupResult.FavoriteRecipeKeys,
-                    requiresRewrite: true);
-            }
-
-            if (backupResult.Status == FileReadStatus.UnsupportedVersion)
-            {
-                LogUnsupportedVersion(backupPath, backupResult.Version);
-
-                return CreateEmptyLoadResult(RecipeFavoritesLoadStatus.UnsupportedVersion, requiresRewrite: false);
-            }
-
-            LogReadFailure(backupPath, backupResult);
-
-            return backupResult.Status == FileReadStatus.Corrupt
-                ? CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Corrupt, requiresRewrite: true)
-                : CreateEmptyLoadResult(RecipeFavoritesLoadStatus.Failed, requiresRewrite: false);
-        }
-
         private FileReadResult ReadFile(string path)
         {
             try
@@ -229,6 +193,11 @@ namespace TerrarianCompendium.Persistence
                     requiresRewrite = true;
 
                 return FileReadResult.Success(new ReadOnlyCollection<RecipePersistentKey>(keys), requiresRewrite);
+            }
+            catch (Exception exception) when (exception is FileNotFoundException ||
+                                              exception is DirectoryNotFoundException)
+            {
+                return FileReadResult.Missing();
             }
             catch (SerializationException exception)
             {
@@ -383,6 +352,7 @@ namespace TerrarianCompendium.Persistence
 
         private enum FileReadStatus
         {
+            Missing,
             Success,
             Corrupt,
             UnsupportedVersion,
@@ -425,6 +395,16 @@ namespace TerrarianCompendium.Persistence
                     CurrentVersion,
                     null,
                     requiresRewrite);
+            }
+
+            public static FileReadResult Missing()
+            {
+                return new FileReadResult(
+                    FileReadStatus.Missing,
+                    Array.Empty<RecipePersistentKey>(),
+                    0,
+                    null,
+                    requiresRewrite: false);
             }
 
             public static FileReadResult Corrupt(Exception exception)

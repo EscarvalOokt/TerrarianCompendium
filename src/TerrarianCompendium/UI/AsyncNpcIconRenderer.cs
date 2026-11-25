@@ -13,10 +13,8 @@ namespace TerrarianCompendium.UI
 
         public static void RequestAsync(int npcNetId)
         {
-            if (!TryGetTextureAsset(npcNetId, out Asset<Texture2D> asset))
-                return;
-
-            RequestAsync(asset);
+            if (TryGetTextureAsset(npcNetId, out _, out Asset<Texture2D> asset))
+                DeferredTextureLoader.Request(asset);
         }
 
         public static void Draw(
@@ -31,13 +29,10 @@ namespace TerrarianCompendium.UI
             if (spriteBatch == null || width <= 0 || height <= 0)
                 return;
 
-            if (!TryResolveNpcType(npcNetId, out int npcType))
+            if (!TryGetTextureAsset(npcNetId, out NPC sample, out Asset<Texture2D> asset))
                 return;
 
-            if (!TryGetTextureAsset(npcType, isResolvedType: true, out Asset<Texture2D> asset))
-                return;
-
-            RequestAsync(asset);
+            DeferredTextureLoader.Request(asset);
 
             if (asset.State != AssetState.Loaded)
                 return;
@@ -47,7 +42,7 @@ namespace TerrarianCompendium.UI
             if (texture == null || texture.Width <= 0 || texture.Height <= 0)
                 return;
 
-            Rectangle frame = GetFrame(npcType, texture);
+            Rectangle frame = GetFrame(sample.type, texture);
             float scale = AsyncItemIconRenderer.CalculateScale(frame.Width, frame.Height, width, height);
 
             if (scale <= 0f)
@@ -57,50 +52,37 @@ namespace TerrarianCompendium.UI
 
             var origin = new Vector2(frame.Width / 2f, frame.Height / 2f);
 
+            bool tinted = !silhouette && sample.color != default;
             Color color = silhouette ? Color.Black : Color.White;
-
+            if (tinted)
+                color = sample.GetAlpha(Color.White);
             spriteBatch.Draw(texture, center, frame, color, 0f, origin, scale, SpriteEffects.None, 0f);
+
+            // Vanilla draws the variant's color as a second pass over the shared NPC texture.
+            if (tinted)
+            {
+                Color variantColor = sample.GetColor(Color.White);
+                spriteBatch.Draw(texture, center, frame, variantColor, 0f, origin, scale, SpriteEffects.None, 0f);
+            }
         }
 
-        private static bool TryGetTextureAsset(int npcNetId, out Asset<Texture2D> asset)
+        private static bool TryGetTextureAsset(int npcNetId, out NPC sample, out Asset<Texture2D> asset)
         {
+            sample = null;
             asset = null;
 
-            if (!TryResolveNpcType(npcNetId, out int npcType))
-                return false;
-
-            return TryGetTextureAsset(npcType, isResolvedType: true, out asset);
-        }
-
-        private static bool TryGetTextureAsset(int npcType, bool isResolvedType, out Asset<Texture2D> asset)
-        {
-            asset = null;
-
-            if (!isResolvedType || npcType < 0)
+            if (ContentSamples.NpcsByNetId == null ||
+                !ContentSamples.NpcsByNetId.TryGetValue(npcNetId, out sample) ||
+                sample == null)
                 return false;
 
             Asset<Texture2D>[] npcTextures = TextureAssets.Npc;
 
-            if (npcTextures == null || npcType >= npcTextures.Length)
+            if (npcTextures == null || sample.type < 0 || sample.type >= npcTextures.Length)
                 return false;
 
-            asset = npcTextures[npcType];
+            asset = npcTextures[sample.type];
             return asset != null;
-        }
-
-        private static bool TryResolveNpcType(int npcNetId, out int npcType)
-        {
-            npcType = -1;
-
-            if (ContentSamples.NpcsByNetId == null ||
-                !ContentSamples.NpcsByNetId.TryGetValue(npcNetId, out NPC sample) ||
-                sample == null)
-            {
-                return false;
-            }
-
-            npcType = sample.type;
-            return npcType >= 0;
         }
 
         private static Rectangle GetFrame(int npcType, Texture2D texture)
@@ -135,11 +117,6 @@ namespace TerrarianCompendium.UI
             }
 
             return frameCounts[npcType];
-        }
-
-        private static void RequestAsync(Asset<Texture2D> asset)
-        {
-            DeferredTextureLoader.Request(asset);
         }
     }
 }

@@ -24,6 +24,7 @@ namespace TerrarianCompendium.Details
 
         private long _cachedChecklistRevision = -1;
         private NpcDifficultyMode _cachedDifficulty;
+        private List<(NpcLootCondition Condition, string Description)> _cachedDynamicLootQualifiers;
         private long _cachedItemTextRevision = -1;
         private NpcBestiaryKillStatisticsSnapshot _cachedKillStatistics;
         private long _cachedLocalizationRevision = -1;
@@ -69,7 +70,7 @@ namespace TerrarianCompendium.Details
             Func<string, string> nativeTextResolver = null)
         {
             _npcCatalog = npcCatalog ?? throw new ArgumentNullException(nameof(npcCatalog));
-            _npcLootIndex = npcLootIndex ?? throw new ArgumentNullException(nameof(npcLootIndex));
+            _npcLootIndex = npcLootIndex;
             _itemCatalog = itemCatalog ?? throw new ArgumentNullException(nameof(itemCatalog));
             _itemTextIndex = itemTextIndex ?? throw new ArgumentNullException(nameof(itemTextIndex));
             _checklistState = checklistState ?? throw new ArgumentNullException(nameof(checklistState));
@@ -98,49 +99,53 @@ namespace TerrarianCompendium.Details
             NpcBestiaryKillStatisticsSnapshot killStatistics = _killStatisticsProvider(npcEntry) ??
                                                                throw new InvalidOperationException(
                                                                    "NPC kill-statistics provider returned null.");
+            long checklistRevision = _checklistState.Revision;
+            long itemTextRevision = _itemTextIndex.Revision;
+            long localizationRevision = _localization.Revision;
+            bool itemRowsCurrent = _cachedProjection != null &&
+                                   _cachedNpcNetId == npcNetId &&
+                                   _cachedChecklistRevision == checklistRevision &&
+                                   _cachedItemTextRevision == itemTextRevision &&
+                                   _cachedLocalizationRevision == localizationRevision;
+            bool lootRowsCurrent =
+                itemRowsCurrent && _cachedDifficulty == difficulty && DynamicLootQualifiersUnchanged();
+            if (lootRowsCurrent &&
+                AreMetadataEquivalent(_cachedMetadata, metadata) &&
+                AreKillStatisticsEquivalent(_cachedKillStatistics, killStatistics))
+            {
+                projection = _cachedProjection;
+                return true;
+            }
+
+            List<(NpcLootCondition Condition, string Description)> dynamicQualifiers =
+                lootRowsCurrent ? _cachedDynamicLootQualifiers : new();
+            IReadOnlyList<NpcDetailsLootRow> lootRows = lootRowsCurrent
+                ? _cachedProjection.LootRows
+                : BuildLootRows(npcEntry, difficulty, dynamicQualifiers);
+            IReadOnlyList<NpcDetailsMerchantStockEntry> merchantStock = itemRowsCurrent
+                ? _cachedProjection.MerchantStock
+                : BuildMerchantStock(npcEntry.NetId);
             NpcDetailsItemReference bannerItem = killStatistics.BannerItemId.HasValue
                 ? CreateItemReference(killStatistics.BannerItemId.Value)
                 : null;
             int bannerProgress = killStatistics.HasBanner
                 ? killStatistics.BannerKillCount % killStatistics.KillsPerBanner
                 : 0;
-            long checklistRevision = _checklistState.Revision;
-            long itemTextRevision = _itemTextIndex.Revision;
-            long localizationRevision = _localization.Revision;
-            IReadOnlyList<NpcDetailsLootRow> lootRows = BuildLootRows(npcEntry, difficulty);
-            bool merchantSourceDataAvailable = _merchantSourceIndex != null;
-            IReadOnlyList<NpcDetailsMerchantStockEntry> merchantStock = merchantSourceDataAvailable
-                ? BuildMerchantStock(npcEntry.NetId)
-                : Array.Empty<NpcDetailsMerchantStockEntry>();
-
-            if (_cachedProjection != null &&
-                _cachedNpcNetId == npcNetId &&
-                _cachedDifficulty == difficulty &&
-                _cachedChecklistRevision == checklistRevision &&
-                _cachedItemTextRevision == itemTextRevision &&
-                _cachedLocalizationRevision == localizationRevision &&
-                AreMetadataEquivalent(_cachedMetadata, metadata) &&
-                AreKillStatisticsEquivalent(_cachedKillStatistics, killStatistics) &&
-                AreLootRowsEquivalent(_cachedProjection.LootRows, lootRows) &&
-                _cachedProjection.MerchantSourceDataAvailable == merchantSourceDataAvailable &&
-                AreMerchantStockEquivalent(_cachedProjection.MerchantStock, merchantStock))
-            {
-                projection = _cachedProjection;
-                return true;
-            }
 
             projection = new NpcDetailsProjection(
                 npcNetId,
                 difficulty,
                 metadata,
                 lootRows,
-                merchantSourceDataAvailable,
+                _merchantSourceIndex != null,
                 merchantStock,
                 killStatistics,
                 bannerItem,
-                bannerProgress);
+                bannerProgress,
+                lootDataAvailable: _npcLootIndex != null);
             _cachedNpcNetId = npcNetId;
             _cachedDifficulty = difficulty;
+            _cachedDynamicLootQualifiers = dynamicQualifiers;
             _cachedChecklistRevision = checklistRevision;
             _cachedItemTextRevision = itemTextRevision;
             _cachedLocalizationRevision = localizationRevision;
@@ -151,8 +156,14 @@ namespace TerrarianCompendium.Details
             return true;
         }
 
-        private IReadOnlyList<NpcDetailsLootRow> BuildLootRows(NpcCatalogEntry npcEntry, NpcDifficultyMode difficulty)
+        private IReadOnlyList<NpcDetailsLootRow> BuildLootRows(
+            NpcCatalogEntry npcEntry,
+            NpcDifficultyMode difficulty,
+            List<(NpcLootCondition Condition, string Description)> dynamicQualifiers)
         {
+            if (_npcLootIndex == null)
+                return Array.Empty<NpcDetailsLootRow>();
+
             IReadOnlyList<NpcLootRelation> relations = _npcLootIndex.GetDropsForNpc(npcEntry.NetId);
 
             if (relations.Count == 0)
@@ -166,7 +177,7 @@ namespace TerrarianCompendium.Details
                     continue;
 
                 NpcDetailsItemReference item = CreateItemReference(relation.ItemId);
-                IReadOnlyList<string> descriptions = GetQualifierDescriptions(relation, difficulty);
+                IReadOnlyList<string> descriptions = GetQualifierDescriptions(relation, difficulty, dynamicQualifiers);
 
                 rows.Add(
                     new NpcDetailsLootRow(item, relation.StackMin, relation.StackMax, relation.DropRate, descriptions));
@@ -177,6 +188,9 @@ namespace TerrarianCompendium.Details
 
         private IReadOnlyList<NpcDetailsMerchantStockEntry> BuildMerchantStock(int npcNetId)
         {
+            if (_merchantSourceIndex == null)
+                return Array.Empty<NpcDetailsMerchantStockEntry>();
+
             IReadOnlyList<MerchantSourceOffer> offers = _merchantSourceIndex.GetStockForMerchant(npcNetId);
 
             if (offers.Count == 0)
@@ -290,9 +304,24 @@ namespace TerrarianCompendium.Details
             return true;
         }
 
+        private bool DynamicLootQualifiersUnchanged()
+        {
+            foreach ((NpcLootCondition Condition, string Description) qualifier in _cachedDynamicLootQualifiers)
+            {
+                if (!string.Equals(
+                        qualifier.Description,
+                        qualifier.Condition.GetDescription(),
+                        StringComparison.Ordinal))
+                    return false;
+            }
+
+            return true;
+        }
+
         private static IReadOnlyList<string> GetQualifierDescriptions(
             NpcLootRelation relation,
-            NpcDifficultyMode difficulty)
+            NpcDifficultyMode difficulty,
+            List<(NpcLootCondition Condition, string Description)> dynamicQualifiers)
         {
             if (relation.Conditions.Count == 0)
                 return Array.Empty<string>();
@@ -305,6 +334,9 @@ namespace TerrarianCompendium.Details
                     continue;
 
                 string description = condition.GetDescription();
+
+                if (condition.DescriptionMayChange)
+                    dynamicQualifiers.Add((condition, description));
 
                 if (!string.IsNullOrWhiteSpace(description))
                     descriptions.Add(description);
@@ -404,114 +436,6 @@ namespace TerrarianCompendium.Details
             return true;
         }
 
-        private static bool AreLootRowsEquivalent(
-            IReadOnlyList<NpcDetailsLootRow> left,
-            IReadOnlyList<NpcDetailsLootRow> right)
-        {
-            if (left.Count != right.Count)
-                return false;
-
-            for (var index = 0; index < left.Count; index++)
-            {
-                NpcDetailsLootRow leftRow = left[index];
-                NpcDetailsLootRow rightRow = right[index];
-
-                if (leftRow.StackMin != rightRow.StackMin ||
-                    leftRow.StackMax != rightRow.StackMax ||
-                    !leftRow.DropRate.Equals(rightRow.DropRate) ||
-                    !AreItemsEquivalent(leftRow.Item, rightRow.Item) ||
-                    !AreStringsEquivalent(leftRow.ConditionDescriptions, rightRow.ConditionDescriptions))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool AreMerchantStockEquivalent(
-            IReadOnlyList<NpcDetailsMerchantStockEntry> left,
-            IReadOnlyList<NpcDetailsMerchantStockEntry> right)
-        {
-            if (left.Count != right.Count)
-                return false;
-
-            for (var index = 0; index < left.Count; index++)
-            {
-                NpcDetailsMerchantStockEntry leftEntry = left[index];
-                NpcDetailsMerchantStockEntry rightEntry = right[index];
-
-                if (leftEntry.IsAlwaysAvailable != rightEntry.IsAlwaysAvailable ||
-                    !AreItemsEquivalent(leftEntry.Item, rightEntry.Item) ||
-                    leftEntry.Variants.Count != rightEntry.Variants.Count)
-                {
-                    return false;
-                }
-
-                for (var variantIndex = 0; variantIndex < leftEntry.Variants.Count; variantIndex++)
-                {
-                    NpcDetailsMerchantVariant leftVariant = leftEntry.Variants[variantIndex];
-                    NpcDetailsMerchantVariant rightVariant = rightEntry.Variants[variantIndex];
-
-                    if (leftVariant.RandomStock != rightVariant.RandomStock ||
-                        leftVariant.ShopCapacityLimited != rightVariant.ShopCapacityLimited ||
-                        !AreMerchantConditionsEquivalent(leftVariant.Conditions, rightVariant.Conditions))
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        }
-
-        private static bool AreMerchantConditionsEquivalent(
-            IReadOnlyList<NpcDetailsMerchantCondition> left,
-            IReadOnlyList<NpcDetailsMerchantCondition> right)
-        {
-            if (left.Count != right.Count)
-                return false;
-
-            for (var index = 0; index < left.Count; index++)
-            {
-                if (!left[index].Condition.Equals(right[index].Condition) ||
-                    !string.Equals(left[index].Description, right[index].Description, StringComparison.Ordinal))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static bool AreItemsEquivalent(NpcDetailsItemReference left, NpcDetailsItemReference right)
-        {
-            if (ReferenceEquals(left, right))
-                return true;
-
-            if (left == null || right == null)
-                return false;
-
-            return left.ItemId == right.ItemId &&
-                   string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
-                   left.IsCollectionTracked == right.IsCollectionTracked &&
-                   left.IsFound == right.IsFound &&
-                   left.IsNavigable == right.IsNavigable;
-        }
-
-        private static bool AreStringsEquivalent(IReadOnlyList<string> left, IReadOnlyList<string> right)
-        {
-            if (left.Count != right.Count)
-                return false;
-
-            for (var index = 0; index < left.Count; index++)
-            {
-                if (!string.Equals(left[index], right[index], StringComparison.Ordinal))
-                    return false;
-            }
-
-            return true;
-        }
 
         private static void ValidateDifficulty(NpcDifficultyMode difficulty)
         {

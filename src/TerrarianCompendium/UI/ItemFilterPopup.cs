@@ -39,6 +39,7 @@ namespace TerrarianCompendium.UI
         private readonly VanillaTextButton _purchasableButton;
         private readonly VanillaIconButton _researchedButton;
         private readonly TextLabelElement _researchLabel;
+        private readonly VanillaScrollRegion _scroll;
         private readonly TextLabelElement _tagsLabel;
         private readonly VanillaIconButton _unresearchedButton;
         private long _localizationRevision = -1;
@@ -60,44 +61,46 @@ namespace TerrarianCompendium.UI
             _hasMerchantFilters = merchantFiltersAvailable;
             _filtersChanged = filtersChanged;
             SetPadding(0f);
+            _scroll = new VanillaScrollRegion { Width = StyleDimension.Fill, Height = StyleDimension.Fill };
+            Append(_scroll);
 
             _completionLabel = new TextLabelElement(string.Empty);
-            Append(_completionLabel);
+            _scroll.Content.Append(_completionLabel);
 
             _missingButton = CreateIconFilterButton(
                 bounds => VanillaPresentationIcons.DrawCompletion(bounds, found: false),
                 () => ToggleCompletionFilter(ChecklistCompletionFilter.Missing),
                 string.Empty);
-            Append(_missingButton);
+            _scroll.Content.Append(_missingButton);
 
             _foundButton = CreateIconFilterButton(
                 bounds => VanillaPresentationIcons.DrawCompletion(bounds, found: true),
                 () => ToggleCompletionFilter(ChecklistCompletionFilter.Found),
                 string.Empty);
-            Append(_foundButton);
+            _scroll.Content.Append(_foundButton);
 
             if (_hasJourneyResearch)
             {
                 _researchLabel = new TextLabelElement(string.Empty);
-                Append(_researchLabel);
+                _scroll.Content.Append(_researchLabel);
 
                 _unresearchedButton = CreateIconFilterButton(
                     bounds => VanillaPresentationIcons.DrawJourneyResearch(bounds, researched: false),
                     () => ToggleResearchFilter(ChecklistResearchFilter.Unresearched),
                     string.Empty);
-                Append(_unresearchedButton);
+                _scroll.Content.Append(_unresearchedButton);
 
                 _researchedButton = CreateIconFilterButton(
                     bounds => VanillaPresentationIcons.DrawJourneyResearch(bounds, researched: true),
                     () => ToggleResearchFilter(ChecklistResearchFilter.Researched),
                     string.Empty);
-                Append(_researchedButton);
+                _scroll.Content.Append(_researchedButton);
             }
 
             if (_hasCraftingFilters)
             {
                 _craftingLabel = new TextLabelElement(string.Empty);
-                Append(_craftingLabel);
+                _scroll.Content.Append(_craftingLabel);
 
                 _hasRecipeButton = new VanillaTextButton(
                     string.Empty,
@@ -106,7 +109,7 @@ namespace TerrarianCompendium.UI
                     ActiveBorderColor = UIColors.Success,
                     ActiveBorderThickness = 2,
                 };
-                Append(_hasRecipeButton);
+                _scroll.Content.Append(_hasRecipeButton);
 
                 _craftableNowButton = new VanillaTextButton(
                     string.Empty,
@@ -115,13 +118,13 @@ namespace TerrarianCompendium.UI
                     ActiveBorderColor = UIColors.Success,
                     ActiveBorderThickness = 2,
                 };
-                Append(_craftableNowButton);
+                _scroll.Content.Append(_craftableNowButton);
             }
 
             if (_hasNpcDropFilters || _hasMerchantFilters)
             {
                 _acquisitionLabel = new TextLabelElement(string.Empty);
-                Append(_acquisitionLabel);
+                _scroll.Content.Append(_acquisitionLabel);
 
                 if (_hasNpcDropFilters)
                 {
@@ -130,7 +133,7 @@ namespace TerrarianCompendium.UI
                         ActiveBorderColor = UIColors.Success,
                         ActiveBorderThickness = 2,
                     };
-                    Append(_npcDropsButton);
+                    _scroll.Content.Append(_npcDropsButton);
                 }
 
                 if (_hasMerchantFilters)
@@ -140,12 +143,12 @@ namespace TerrarianCompendium.UI
                         ActiveBorderColor = UIColors.Success,
                         ActiveBorderThickness = 2,
                     };
-                    Append(_purchasableButton);
+                    _scroll.Content.Append(_purchasableButton);
                 }
             }
 
             _tagsLabel = new TextLabelElement(string.Empty);
-            Append(_tagsLabel);
+            _scroll.Content.Append(_tagsLabel);
 
             IReadOnlyList<ItemTaxonomyFacetDefinition> facets = ItemTaxonomyDefinitions.Facets;
             _facetControls = new FacetFilterControl[facets.Count];
@@ -162,7 +165,7 @@ namespace TerrarianCompendium.UI
                     _localization);
 
                 _facetControls[index] = new FacetFilterControl(button, facetId);
-                Append(button);
+                _scroll.Content.Append(button);
             }
 
             SynchronizeLocalization(force: true);
@@ -239,8 +242,8 @@ namespace TerrarianCompendium.UI
                 }
             }
 
-            int width = Math.Min(Math.Max(0, availableWidth), naturalWidth);
-            int height = CalculateContentHeight(width);
+            int width = Math.Min(Math.Max(0, availableWidth), VanillaScrollRegion.CalculateRequiredWidth(naturalWidth));
+            int height = CalculateContentHeight(VanillaScrollRegion.CalculateContentWidth(width));
             return new VanillaPopoverContentSize(width, height);
         }
 
@@ -279,8 +282,7 @@ namespace TerrarianCompendium.UI
 
         public override void RecalculateChildren()
         {
-            CalculatedStyle dimensions = GetInnerDimensions();
-            int width = Math.Max(0, (int)dimensions.Width);
+            int width = VanillaScrollRegion.CalculateContentWidth((int)GetInnerDimensions().Width);
             var top = 0;
 
             if (_researchLabel != null)
@@ -360,6 +362,7 @@ namespace TerrarianCompendium.UI
                 LayoutElement(_facetControls[index].Button, left, iconTop, IconSize, IconSize);
             }
 
+            _scroll.SetContentHeight(CalculateContentHeight(width));
             base.RecalculateChildren();
         }
 

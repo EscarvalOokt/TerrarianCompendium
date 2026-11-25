@@ -208,8 +208,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 }
             }
 
-            UserInterface previousActiveInterface = UserInterface.ActiveInstance;
-
+            var previousContext = new UiContextSnapshot();
             try
             {
                 PlayerInput.SetZoom_UI();
@@ -233,8 +232,7 @@ namespace TerrarianCompendium.UI.Vanilla
             {
                 // The game's native UI receives its pending wheel on the next update.
                 PlayerInput.ScrollWheelDeltaForUI = passThroughToVanilla ? vanillaWheel : 0;
-                PlayerInput.SetZoom_Unscaled();
-                UserInterface.ActiveInstance = previousActiveInterface;
+                previousContext.Restore();
                 SyncKeyInputBlock();
             }
         }
@@ -284,7 +282,7 @@ namespace TerrarianCompendium.UI.Vanilla
 
             try
             {
-                UserInterface previousActiveInterface = UserInterface.ActiveInstance;
+                var previousContext = new UiContextSnapshot();
 
                 try
                 {
@@ -295,8 +293,7 @@ namespace TerrarianCompendium.UI.Vanilla
                 }
                 finally
                 {
-                    PlayerInput.SetZoom_Unscaled();
-                    UserInterface.ActiveInstance = previousActiveInterface;
+                    previousContext.Restore();
                 }
 
                 // Open need not change the already fitted geometry and trigger BoundsChanged.
@@ -338,7 +335,7 @@ namespace TerrarianCompendium.UI.Vanilla
                     if (!wasAttached)
                         return;
 
-                    UserInterface previousActiveInterface = UserInterface.ActiveInstance;
+                    var previousContext = new UiContextSnapshot();
 
                     try
                     {
@@ -348,8 +345,7 @@ namespace TerrarianCompendium.UI.Vanilla
                     }
                     finally
                     {
-                        PlayerInput.SetZoom_Unscaled();
-                        UserInterface.ActiveInstance = previousActiveInterface;
+                        previousContext.Restore();
                     }
                 },
                 UnregisterKeyInputBlock
@@ -358,12 +354,10 @@ namespace TerrarianCompendium.UI.Vanilla
 
         private void ReleaseTextFocus()
         {
-            UserInterface previousActiveInterface = UserInterface.ActiveInstance;
-            bool wasWritingText = _state.IsWritingText;
-
+            var previousContext = new UiContextSnapshot();
             try
             {
-                if (wasWritingText)
+                if (_state.IsWritingText)
                 {
                     PlayerInput.SetZoom_UI();
                     _userInterface.Use();
@@ -372,10 +366,7 @@ namespace TerrarianCompendium.UI.Vanilla
             }
             finally
             {
-                if (wasWritingText)
-                    PlayerInput.SetZoom_Unscaled();
-
-                UserInterface.ActiveInstance = previousActiveInterface;
+                previousContext.Restore();
                 ReleaseCoreTextInput();
                 SyncKeyInputBlock();
             }
@@ -405,14 +396,7 @@ namespace TerrarianCompendium.UI.Vanilla
 
         private void OnBoundsChanged(WindowBounds bounds)
         {
-            UserInterface previousActiveInterface = UserInterface.ActiveInstance;
-            int previousMouseX = Main.mouseX;
-            int previousMouseY = Main.mouseY;
-            int previousLastMouseX = Main.lastMouseX;
-            int previousLastMouseY = Main.lastMouseY;
-            int previousScreenWidth = Main.screenWidth;
-            int previousScreenHeight = Main.screenHeight;
-
+            var previousContext = new UiContextSnapshot();
             try
             {
                 PlayerInput.SetZoom_UI();
@@ -421,13 +405,7 @@ namespace TerrarianCompendium.UI.Vanilla
             }
             finally
             {
-                Main.mouseX = previousMouseX;
-                Main.mouseY = previousMouseY;
-                Main.lastMouseX = previousLastMouseX;
-                Main.lastMouseY = previousLastMouseY;
-                Main.screenWidth = previousScreenWidth;
-                Main.screenHeight = previousScreenHeight;
-                UserInterface.ActiveInstance = previousActiveInterface;
+                previousContext.Restore();
             }
         }
 
@@ -610,6 +588,29 @@ namespace TerrarianCompendium.UI.Vanilla
 
             UIRenderer.UnregisterKeyInputBlock(_keyInputBlockId);
             _keyInputBlockRegistered = false;
+        }
+
+        // Input callbacks can arrive while vanilla is drawing its inventory at UI scale.
+        private readonly struct UiContextSnapshot()
+        {
+            private readonly UserInterface _activeInterface = UserInterface.ActiveInstance;
+            private readonly int _mouseX = Main.mouseX;
+            private readonly int _mouseY = Main.mouseY;
+            private readonly int _lastMouseX = Main.lastMouseX;
+            private readonly int _lastMouseY = Main.lastMouseY;
+            private readonly int _screenWidth = Main.screenWidth;
+            private readonly int _screenHeight = Main.screenHeight;
+
+            public void Restore()
+            {
+                Main.mouseX = _mouseX;
+                Main.mouseY = _mouseY;
+                Main.lastMouseX = _lastMouseX;
+                Main.lastMouseY = _lastMouseY;
+                Main.screenWidth = _screenWidth;
+                Main.screenHeight = _screenHeight;
+                UserInterface.ActiveInstance = _activeInterface;
+            }
         }
     }
 }

@@ -25,6 +25,31 @@ namespace TerrarianCompendium.Tests.Acquisition
         }
 
         [Test]
+        public void Build_IncludesEverySurfaceChestPrimaryRollAndRemixSubstitution()
+        {
+            WorldLootSourceIndex index = new VanillaWorldLootSourceIndexBuilder().Build();
+            int[] surfaceItems = [280, 281, 284, 285, 953, 946, 3068, 3069, 517, 3084, 4341, 6165];
+
+            foreach (int itemId in surfaceItems)
+                AssertSource(index, itemId, "generated-chests", 48);
+        }
+
+        [TestCase(866, "pyramid-chests", 306)]
+        [TestCase(933, "living-wood-chests", 831)]
+        [TestCase(3360, "jungle-shrine-chests", 626)]
+        [TestCase(3361, "jungle-shrine-chests", 626)]
+        [TestCase(4425, "water-chests", 1298)]
+        [TestCase(5465, "dungeon-chests", 306)]
+        [TestCase(725, "ice-chests", 681)]
+        [TestCase(4066, "sandstone-chests", 4267)]
+        [TestCase(683, "shadow-chests", 328)]
+        [TestCase(4008, "error-world-chests", 48)]
+        public void Build_AttributesCompanionsAndBiomeRollsToTheirChest(int itemId, string source, int icon)
+        {
+            AssertSource(new VanillaWorldLootSourceIndexBuilder().Build(), itemId, source, icon);
+        }
+
+        [Test]
         public void Build_TreeShakingUsesArchetypeSpecificSourcesAndRepresentatives()
         {
             WorldLootSourceIndex index = new VanillaWorldLootSourceIndexBuilder().Build();

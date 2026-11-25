@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization.Json;
 using NUnit.Framework;
+using TerrarianCompendium.Acquisition;
 using TerrarianCompendium.Localization;
 
 namespace TerrarianCompendium.Tests.Localization
@@ -70,6 +71,14 @@ namespace TerrarianCompendium.Tests.Localization
                         $"Release locale placeholders are incompatible for '{key}'.");
                 }
             });
+        }
+
+        [TestCase("en-US", "Dungeon", "Skeletron")]
+        [TestCase("ru-RU", "Темниц", "Скелетрон")]
+        public void DungeonFishingCondition_ShowsBiomeAndBossRequirement(string culture, string biome, string boss)
+        {
+            string key = CompendiumTextKeys.Fishing.Condition(FishingSourceConditionKind.Dungeon);
+            Assert.That(ReadEmbeddedLocale(culture)[key], Does.Contain(biome).And.Contain(boss));
         }
 
         [Test]

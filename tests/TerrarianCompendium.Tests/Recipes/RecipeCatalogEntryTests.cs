@@ -13,12 +13,12 @@ namespace TerrarianCompendium.Tests.Recipes
             var ingredient = new RecipeIngredient(9, 3, RecipeIngredientRequirement.ForItem(9));
             var environment = new RecipeEnvironmentRequirements(18, true, true, true, true, true, true, true);
 
-            var entry = new RecipeCatalogEntry(7, 100, 2, new[] { ingredient }, environment, isAlchemy: true);
+            var entry = new RecipeCatalogEntry(7, 100, 2, [ingredient], environment, isAlchemy: true);
 
             Assert.That(entry.RuntimeIndex, Is.EqualTo(7));
             Assert.That(entry.ResultItemId, Is.EqualTo(100));
             Assert.That(entry.ResultStack, Is.EqualTo(2));
-            Assert.That(entry.Ingredients, Is.EqualTo(new[] { ingredient }));
+            Assert.That(entry.Ingredients, Is.EqualTo([ingredient]));
             Assert.That(entry.EnvironmentRequirements, Is.SameAs(environment));
             Assert.That(entry.IsAlchemy, Is.True);
         }
@@ -28,7 +28,7 @@ namespace TerrarianCompendium.Tests.Recipes
         {
             var originalIngredient = new RecipeIngredient(9, 1, RecipeIngredientRequirement.ForItem(9));
             var replacementIngredient = new RecipeIngredient(10, 1, RecipeIngredientRequirement.ForItem(10));
-            RecipeIngredient[] ingredients = { originalIngredient };
+            RecipeIngredient[] ingredients = [originalIngredient];
 
             RecipeCatalogEntry entry = CreateEntry(ingredients);
             ingredients[0] = replacementIngredient;
@@ -39,7 +39,7 @@ namespace TerrarianCompendium.Tests.Recipes
         [Test]
         public void Constructor_WithNullIngredient_Throws()
         {
-            RecipeIngredient[] ingredients = { null };
+            RecipeIngredient[] ingredients = [null];
 
             Assert.Throws<ArgumentException>((Action)(() => { CreateEntry(ingredients); }));
         }
@@ -51,13 +51,7 @@ namespace TerrarianCompendium.Tests.Recipes
             Assert.Throws<ArgumentOutOfRangeException>(
                 (Action)(() =>
                 {
-                    _ = new RecipeCatalogEntry(
-                        runtimeIndex,
-                        1,
-                        1,
-                        Array.Empty<RecipeIngredient>(),
-                        CreateEnvironment(),
-                        isAlchemy: false);
+                    _ = new RecipeCatalogEntry(runtimeIndex, 1, 1, [], CreateEnvironment(), isAlchemy: false);
                 }));
         }
 
@@ -68,13 +62,7 @@ namespace TerrarianCompendium.Tests.Recipes
             Assert.Throws<ArgumentOutOfRangeException>(
                 (Action)(() =>
                 {
-                    _ = new RecipeCatalogEntry(
-                        0,
-                        resultItemId,
-                        1,
-                        Array.Empty<RecipeIngredient>(),
-                        CreateEnvironment(),
-                        isAlchemy: false);
+                    _ = new RecipeCatalogEntry(0, resultItemId, 1, [], CreateEnvironment(), isAlchemy: false);
                 }));
         }
 
@@ -85,13 +73,7 @@ namespace TerrarianCompendium.Tests.Recipes
             Assert.Throws<ArgumentOutOfRangeException>(
                 (Action)(() =>
                 {
-                    _ = new RecipeCatalogEntry(
-                        0,
-                        1,
-                        resultStack,
-                        Array.Empty<RecipeIngredient>(),
-                        CreateEnvironment(),
-                        isAlchemy: false);
+                    _ = new RecipeCatalogEntry(0, 1, resultStack, [], CreateEnvironment(), isAlchemy: false);
                 }));
         }
 
@@ -106,10 +88,7 @@ namespace TerrarianCompendium.Tests.Recipes
         public void Constructor_WithNullEnvironmentRequirements_Throws()
         {
             Assert.Throws<ArgumentNullException>(
-                (Action)(() =>
-                {
-                    _ = new RecipeCatalogEntry(0, 1, 1, Array.Empty<RecipeIngredient>(), null, isAlchemy: false);
-                }));
+                (Action)(() => { _ = new RecipeCatalogEntry(0, 1, 1, [], null, isAlchemy: false); }));
         }
 
         [Test]
@@ -119,20 +98,20 @@ namespace TerrarianCompendium.Tests.Recipes
 
             Assert.That(requirement.Kind, Is.EqualTo(RecipeIngredientRequirementKind.Item));
             Assert.That(requirement.IdentityId, Is.EqualTo(42));
-            Assert.That(requirement.ValidItemIds, Is.EqualTo(new[] { 42 }));
+            Assert.That(requirement.ValidItemIds, Is.EqualTo([42]));
         }
 
         [Test]
         public void RecipeGroupRequirement_CopiesSortsAndDeduplicatesValidItems()
         {
-            int[] validItemIds = { 30, 10, 20, 10 };
+            int[] validItemIds = [30, 10, 20, 10];
 
             var requirement = RecipeIngredientRequirement.ForRecipeGroup(5, validItemIds);
             validItemIds[0] = 999;
 
             Assert.That(requirement.Kind, Is.EqualTo(RecipeIngredientRequirementKind.RecipeGroup));
             Assert.That(requirement.IdentityId, Is.EqualTo(5));
-            Assert.That(requirement.ValidItemIds, Is.EqualTo(new[] { 10, 20, 30 }));
+            Assert.That(requirement.ValidItemIds, Is.EqualTo([10, 20, 30]));
         }
 
         [TestCase(0)]
@@ -147,20 +126,19 @@ namespace TerrarianCompendium.Tests.Recipes
         public void RecipeGroupRequirement_WithNegativeGroupId_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(
-                (Action)(() => { RecipeIngredientRequirement.ForRecipeGroup(-1, new[] { 1 }); }));
+                (Action)(() => { RecipeIngredientRequirement.ForRecipeGroup(-1, [1]); }));
         }
 
         [Test]
         public void RecipeGroupRequirement_WithNoValidItems_Throws()
         {
-            Assert.Throws<ArgumentException>(
-                (Action)(() => { RecipeIngredientRequirement.ForRecipeGroup(0, Array.Empty<int>()); }));
+            Assert.Throws<ArgumentException>((Action)(() => { RecipeIngredientRequirement.ForRecipeGroup(0, []); }));
         }
 
         [Test]
         public void RecipeIngredient_PreservesDisplayAndNormalizedRequirement()
         {
-            var requirement = RecipeIngredientRequirement.ForRecipeGroup(3, new[] { 9, 619 });
+            var requirement = RecipeIngredientRequirement.ForRecipeGroup(3, [9, 619]);
             var ingredient = new RecipeIngredient(9, 5, requirement);
 
             Assert.That(ingredient.DisplayItemId, Is.EqualTo(9));

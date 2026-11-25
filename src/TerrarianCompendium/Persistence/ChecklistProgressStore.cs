@@ -41,11 +41,6 @@ namespace TerrarianCompendium.Persistence
         {
             ValidatePath(path);
 
-            string backupPath = GetBackupPath(path);
-
-            if (!File.Exists(path))
-                return LoadWithoutPrimaryFile(backupPath);
-
             FileReadResult primaryResult = ReadFile(path);
 
             if (primaryResult.Status == FileReadStatus.Success)
@@ -63,40 +58,41 @@ namespace TerrarianCompendium.Persistence
                 return CreateEmptyLoadResult(ChecklistProgressLoadStatus.UnsupportedVersion, requiresRewrite: false);
             }
 
-            LogReadFailure(path, primaryResult);
-
-            if (File.Exists(backupPath))
+            if (primaryResult.Status == FileReadStatus.Failed)
             {
-                FileReadResult backupResult = ReadFile(backupPath);
+                LogReadFailure(path, primaryResult);
+                return CreateEmptyLoadResult(ChecklistProgressLoadStatus.Failed, requiresRewrite: false);
+            }
 
-                if (backupResult.Status == FileReadStatus.Success)
-                {
-                    _logger?.Info($"Checklist persistence recovered progress from backup '{backupPath}'.");
+            if (primaryResult.Status == FileReadStatus.Corrupt)
+                LogReadFailure(path, primaryResult);
 
+            string backupPath = GetBackupPath(path);
+            FileReadResult backupResult = ReadFile(backupPath);
+            switch (backupResult.Status)
+            {
+                case FileReadStatus.Success:
+                    _logger?.Info($"Recovered checklist progress from backup '{backupPath}'.");
                     return new ChecklistProgressLoadResult(
                         ChecklistProgressLoadStatus.RecoveredFromBackup,
                         backupResult.FoundItemIds,
                         requiresRewrite: true);
-                }
-
-                if (backupResult.Status == FileReadStatus.UnsupportedVersion)
-                {
+                case FileReadStatus.UnsupportedVersion:
                     LogUnsupportedVersion(backupPath, backupResult.Version);
-
                     return CreateEmptyLoadResult(
                         ChecklistProgressLoadStatus.UnsupportedVersion,
                         requiresRewrite: false);
-                }
-
-                LogReadFailure(backupPath, backupResult);
-
-                if (backupResult.Status == FileReadStatus.Failed)
+                case FileReadStatus.Failed:
+                    LogReadFailure(backupPath, backupResult);
                     return CreateEmptyLoadResult(ChecklistProgressLoadStatus.Failed, requiresRewrite: false);
+                case FileReadStatus.Corrupt:
+                    LogReadFailure(backupPath, backupResult);
+                    return CreateEmptyLoadResult(ChecklistProgressLoadStatus.Corrupt, requiresRewrite: true);
+                default:
+                    return primaryResult.Status == FileReadStatus.Missing
+                        ? CreateEmptyLoadResult(ChecklistProgressLoadStatus.Missing, requiresRewrite: false)
+                        : CreateEmptyLoadResult(ChecklistProgressLoadStatus.Corrupt, requiresRewrite: true);
             }
-
-            return primaryResult.Status == FileReadStatus.Corrupt
-                ? CreateEmptyLoadResult(ChecklistProgressLoadStatus.Corrupt, requiresRewrite: true)
-                : CreateEmptyLoadResult(ChecklistProgressLoadStatus.Failed, requiresRewrite: false);
         }
 
         public ChecklistProgressLoadResult LoadWithLegacyFallback(
@@ -173,40 +169,6 @@ namespace TerrarianCompendium.Persistence
             }
         }
 
-        private ChecklistProgressLoadResult LoadWithoutPrimaryFile(string backupPath)
-        {
-            if (!File.Exists(backupPath))
-            {
-                return CreateEmptyLoadResult(ChecklistProgressLoadStatus.Missing, requiresRewrite: false);
-            }
-
-            FileReadResult backupResult = ReadFile(backupPath);
-
-            if (backupResult.Status == FileReadStatus.Success)
-            {
-                _logger?.Info(
-                    $"Checklist persistence recovered progress from backup '{backupPath}' because the primary file is missing.");
-
-                return new ChecklistProgressLoadResult(
-                    ChecklistProgressLoadStatus.RecoveredFromBackup,
-                    backupResult.FoundItemIds,
-                    requiresRewrite: true);
-            }
-
-            if (backupResult.Status == FileReadStatus.UnsupportedVersion)
-            {
-                LogUnsupportedVersion(backupPath, backupResult.Version);
-
-                return CreateEmptyLoadResult(ChecklistProgressLoadStatus.UnsupportedVersion, requiresRewrite: false);
-            }
-
-            LogReadFailure(backupPath, backupResult);
-
-            return backupResult.Status == FileReadStatus.Corrupt
-                ? CreateEmptyLoadResult(ChecklistProgressLoadStatus.Corrupt, requiresRewrite: true)
-                : CreateEmptyLoadResult(ChecklistProgressLoadStatus.Failed, requiresRewrite: false);
-        }
-
         private FileReadResult ReadFile(string path)
         {
             try
@@ -227,6 +189,11 @@ namespace TerrarianCompendium.Persistence
                 int[] foundItemIds = data.FoundItemIds ?? Array.Empty<int>();
 
                 return FileReadResult.Success(CreateReadOnlyCopy(foundItemIds));
+            }
+            catch (Exception exception) when (exception is FileNotFoundException ||
+                                              exception is DirectoryNotFoundException)
+            {
+                return FileReadResult.Missing();
             }
             catch (SerializationException exception)
             {
@@ -357,6 +324,7 @@ namespace TerrarianCompendium.Persistence
 
         private enum FileReadStatus
         {
+            Missing,
             Success,
             Corrupt,
             UnsupportedVersion,
@@ -388,6 +356,11 @@ namespace TerrarianCompendium.Persistence
             public static FileReadResult Success(IReadOnlyList<int> foundItemIds)
             {
                 return new FileReadResult(FileReadStatus.Success, foundItemIds, CurrentVersion, null);
+            }
+
+            public static FileReadResult Missing()
+            {
+                return new FileReadResult(FileReadStatus.Missing, Array.Empty<int>(), 0, null);
             }
 
             public static FileReadResult Corrupt(Exception exception)

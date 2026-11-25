@@ -14,7 +14,7 @@ Good candidates for deterministic tests include project-owned parsing, serializa
 
 ## Development build and source dependency
 
-The production project targets .NET Framework 4.8 and imports TerrariaWindowKit Core and shared sources from a sibling checkout via `TerrariaWindowKit.Source.projitems`. The 1.4.0 development configuration uses WindowKit `v1.1.0`, but the source import does not pin that checkout; identify the actual Compendium and WindowKit source revisions for a validation run. See the [README development setup](../README.md#development) for the checkout, compiler and local properties instructions.
+The production project targets .NET Framework 4.8 and imports TerrariaWindowKit Core and shared sources from a sibling checkout via `TerrariaWindowKit.Source.projitems`. The 1.5.0 development configuration uses WindowKit `v1.1.0`, but the source import does not pin that checkout; identify the actual Compendium and WindowKit source revisions for a validation run. See the [README development setup](../README.md#development) for the checkout, compiler and local properties instructions.
 
 From the Compendium repository root:
 
@@ -36,9 +36,16 @@ Examples may include:
 - inventory or entity mutation in the live game;
 - Vanilla Terraria UI / TerrariaModder in-game hosting, input, clipping, and integration behavior.
 
+### Version 1.5.0 in-game checks
+
+- Visit a normal world, a Remix world, then a normal world in one client session. Flower of Fire should show 48 damage and 16 use-time ticks, then 85 and 12, then 48 and 16 again.
+- At 100% and 150% UI scale, use Alt + right-click and Ctrl + Alt + right-click on different inventory slots. Check the destination and hover the same slot again. At minimum window height, scroll the Items filter through its last tag and toggle it.
+- Compare two encountered slime color variants with an undiscovered silhouette. Leave NPC Details open during a kill and check that the kill and banner counters advance.
+- In Singleplayer and Host & Play, open a craftable recipe, consume the ingredients, then repeat using an open vanilla chest. Check that availability reacts to both changes and a stale Craft button cannot spend missing materials.
+
 ### WindowKit / Vanilla UI acceptance scenarios
 
-For changes to the production window adapter, apply the affected scenarios in the current Terraria 1.4.5.8 / TerrariaModder Core 0.4.2 / TerrariaWindowKit v1.1.0 configuration:
+For changes to the production window adapter, apply the affected scenarios in the current Terraria 1.4.6.1 / TerrariaModder Core 0.4.3 / TerrariaWindowKit v1.1.0 configuration:
 
 - **Root lifecycle, geometry and pin:** open/close/reopen with `Alt+I` and the close button, preserved session history/filters and bounds, drag/resize, UI scale, mouse position, in-game options, world transitions and mod unload; check pinned/unpinned close behavior, pin reset on reopen, localized Pin/Unpin button layout, and absence of stale registrations and blockers.
 - **Keyboard and transient UI:** search Enter/Escape, text focus acquisition/release, popup-before-root Escape priority with and without pinning, physical key release, F6 availability after focus loss, and keyboard ownership when a higher-priority panel is active.

@@ -476,12 +476,13 @@ namespace TerrarianCompendium.UI
             _favoriteButton.Top.Set(ContentPadding, 0f);
             _favoriteButton.Width.Set(FavoriteButtonWidth, 0f);
             _favoriteButton.Height.Set(FavoriteButtonHeight, 0f);
+            _favoriteButton.IsEnabled = _favoriteState.CanEdit;
             _favoriteButton.IsActive = _projection.IsFavorite;
             _favoriteButton.Text = _projection.IsFavorite ? "★" : "☆";
             _favoriteButton.TooltipText = _localization.Get(
-                _projection.IsFavorite
-                    ? CompendiumTextKeys.Recipes.RemoveFavorite
-                    : CompendiumTextKeys.Recipes.AddFavorite);
+                !_favoriteState.CanEdit ? CompendiumTextKeys.Recipes.FavoritesUnavailable :
+                _projection.IsFavorite ? CompendiumTextKeys.Recipes.RemoveFavorite :
+                CompendiumTextKeys.Recipes.AddFavorite);
         }
 
         private void HideFavoriteButton()
